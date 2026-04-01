@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920, height=1080">
+<title>蒙提霍尔问题 - 2D卡通版</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;700;900&family=ZCOOL+KuaiLe&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+body{width:1920px;height:1080px;overflow:hidden;background:#1a1a2e;font-family:'Noto Sans SC',sans-serif;}
+canvas{display:block;}
+#playBtn{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:2000;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-direction:column;gap:20px;}
+.play-circle{width:120px;height:120px;border:3px solid rgba(255,255,255,0.8);border-radius:50%;display:flex;align-items:center;justify-content:center;transition:transform 0.3s;}
+#playBtn:hover .play-circle{transform:scale(1.1);}
+.play-circle::after{content:'';width:0;height:0;border-style:solid;border-width:25px 0 25px 45px;border-color:transparent transparent transparent #fff;margin-left:8px;}
+.play-label{font-size:24px;color:rgba(255,255,255,0.6);letter-spacing:8px;font-family:'ZCOOL KuaiLe',sans-serif;}
+</style>
+</head>
+<body>
+<div id="playBtn">
+  <div class="play-circle"></div>
+  <div class="play-label">蒙提霍尔问题</div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.3/pixi.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+document.getElementById('playBtn').addEventListener('click', async function(){
+  this.style.display='none';
+  await init();
+});
+
+async function init(){
+const app = new PIXI.Application({width:1920, height:1080, backgroundColor:0x1a1a2e, antialias:true});
+document.body.appendChild(app.view);
+
+// ==================== COLOR PALETTE ====================
+const C = {
+  bg: 0x1a1a2e,
+  bgLight: 0x16213e,
+  accent: 0xe94560,
+  gold: 0xf5c518,
+  green: 0x27ae60,
+  white: 0xffffff,
+  gray: 0x888888,
+  dark: 0x333333,
+  door: 0x0f3460,
+  doorLight: 0x1a5276,
+  wood: 0x8B5E3C,
+  stage: 0x2c2c54,
+};
+
+// ==================== HELPERS ====================
+function makeText(str, size=32, color=C.white, family='ZCOOL KuaiLe'){
+  return new PIXI.Text(str, {
+    fontFamily: family,
+    fontSize: size,
+    fill: color,
+    align: 'center',
+    wordWrap: true,
+    wordWrapWidth: 1600,
+    lineHeight: size*1.5,
+  });
+}
+
+function makeRoundRect(w, h, color, radius=16, alpha=1){
+  const g = new PIXI.Graphics();
+  g.beginFill(color, alpha);
+  g.drawRoundedRect(-w/2, -h/2, w, h, radius);
+  g.endFill();
+  return g;
+}
+
+function makeCircle(r, color, alpha=1){
+  const g = new PIXI.Graphics();
+  g.beginFill(color, alpha);
+  g.drawCircle(0, 0, r);
+  g.endFill();
+  return g;
+}
+
+// ==================== SCENE CONTAINER ====================
+const scenes = {};
+function createScene(name){
+  const c = new PIXI.Container();
+  c.alpha = 0;
+  app.stage.addChild(c);
+  scenes[name] = c;
+  return c;
+}
+
+// ==================== SUBTITLE BAR ====================
+const subBar = new PIXI.Container();
+subBar.alpha = 0;
+app.stage.addChild(subBar);
+const subBg = makeRoundRect(1920, 80, 0x000000, 0, 0.75);
+subBg.y = 1040;
+subBar.addChild(subBg);
+const subText = makeText('', 34, C.white, 'Noto Sans SC');
+subText.anchor.set(0.5);
+subText.x = 960; subText.y = 1040;
+subBar.addChild(subText);
+
+// Credit
+const credit = makeText('@AI科普动画', 18, 0x666666, 'Noto Sans SC');
+credit.anchor.set(1, 0.5);
+credit.x = 1880; credit.y = 1040;
+subBar.addChild(credit);
+
+// Progress bar
+const progBar = new PIXI.Graphics();
+progBar.beginFill(C.accent);
+progBar.drawRect(0, 0, 1, 3);
+progBar.endFill();
+progBar.y = 0;
+app.stage.addChild(progBar);
+
+// ==================== DRAW A CARTOON DOOR ====================
+function makeDoor(doorColor=C.door, hasGoat=false, hasCar=false, number=1){
+  const container = new PIXI.Container();
+
+  // Door frame
+  const frame = new PIXI.Graphics();
+  frame.beginFill(C.wood);
+  frame.drawRoundedRect(-130, -220, 260, 440, 12);
+  frame.endFill();
+  container.addChild(frame);
+
+  // Door panel
+  const panel = new PIXI.Graphics();
+  panel.beginFill(doorColor);
+  panel.drawRoundedRect(-115, -205, 230, 410, 8);
+  panel.endFill();
+  container.addChild(panel);
+
+  // Door panels (decorative)
+  const panelLine = new PIXI.Graphics();
+  panelLine.lineStyle(2, 0xffffff, 0.15);
+  panelLine.drawRoundedRect(-95, -185, 190, 170, 6);
+  panelLine.drawRoundedRect(-95, 5, 190, 170, 6);
+  container.addChild(panelLine);
+
+  // Door handle
+  const handle = makeCircle(12, C.gold);
+  handle.x = 85; handle.y = 10;
+  container.addChild(handle);
+
+  // Number
+  const numText = makeText(String(number), 72, C.gold);
+  numText.anchor.set(0.5);
+  numText.y = -100;
+  container.addChild(numText);
+
+  // Question mark
+  const qmark = makeText('?', 120, 0xffffff);
+  qmark.anchor.set(0.5);
+  qmark.y = 50;
+  qmark.alpha = 0.3;
+  container.addChild(qmark);
+
+  // Hidden content containers
+  const goatContainer = new PIXI.Container();
+  goatContainer.alpha = 0;
+  container.addChild(goatContainer);
+
+  const carContainer = new PIXI.Container();
+  carContainer.alpha = 0;
+  container.addChild(carContainer);
+
+  // Goat emoji (simplified drawing)
+  if(hasGoat || !hasCar){
+    const goatText = makeText('🐐', 80);
+    goatText.anchor.set(0.5);
+    goatText.y = 40;
+    goatContainer.addChild(goatText);
+    const goatLabel = makeText('山羊', 24, C.gray);
+    goatLabel.anchor.set(0.5);
+    goatLabel.y = 100;
+    goatContainer.addChild(goatLabel);
+  }
+
+  // Car
+  if(hasCar){
+    const carText = makeText('🚗', 80);
+    carText.anchor.set(0.5);
+    carText.y = 40;
+    carContainer.addChild(carText);
+    const carLabel = makeText('汽车!', 28, C.gold);
+    carLabel.anchor.set(0.5);
+    carLabel.y = 100;
+    carContainer.addChild(carLabel);
+  }
+
+  container._panel = panel;
+  container._qmark = qmark;
+  container._goat = goatContainer;
+  container._car = carContainer;
+  container._number = numText;
+
+  return container;
+}
+
+// ==================== DRAW CARTOON HOST ====================
+function makeHost(){
+  const c = new PIXI.Container();
+
+  // Body
+  const body = new PIXI.Graphics();
+  body.beginFill(0x2c3e50);
+  body.drawRoundedRect(-35, 0, 70, 100, 8);
+  body.endFill();
+  c.addChild(body);
+
+  // Bow tie
+  const bow = new PIXI.Graphics();
+  bow.beginFill(C.accent);
+  bow.moveTo(-12, 5);
+  bow.lineTo(0, 12);
+  bow.lineTo(12, 5);
+  bow.lineTo(0, -2);
+  bow.closePath();
+  bow.endFill();
+  c.addChild(bow);
+
+  // Head
+  const head = makeCircle(30, 0xF4C2A1);
+  head.y = -30;
+  c.addChild(head);
+
+  // Eyes
+  const eyeL = makeCircle(4, C.dark);
+  eyeL.x = -10; eyeL.y = -32;
+  c.addChild(eyeL);
+  const eyeR = makeCircle(4, C.dark);
+  eyeR.x = 10; eyeR.y = -32;
+  c.addChild(eyeR);
+
+  // Smile
+  const smile = new PIXI.Graphics();
+  smile.lineStyle(3, C.dark);
+  smile.arc(0, -20, 12, 0.2, Math.PI-0.2);
+  c.addChild(smile);
+
+  // Hat
+  const hat = new PIXI.Graphics();
+  hat.beginFill(C.dark);
+  hat.drawRect(-25, -65, 50, 8);
+  hat.drawRect(-15, -95, 30, 35);
+  hat.endFill();
+  c.addChild(hat);
+
+  // Arms
+  const armL = new PIXI.Graphics();
+  armL.lineStyle(6, 0x2c3e50);
+  armL.moveTo(-35, 20);
+  armL.lineTo(-60, 60);
+  c.addChild(armL);
+  c._armL = armL;
+
+  const armR = new PIXI.Graphics();
+  armR.lineStyle(6, 0x2c3e50);
+  armR.moveTo(35, 20);
+  armR.lineTo(60, 60);
+  c.addChild(armR);
+  c._armR = armR;
+
+  // Legs
+  const legs = new PIXI.Graphics();
+  legs.lineStyle(6, 0x2c3e50);
+  legs.moveTo(-12, 100); legs.lineTo(-12, 140);
+  legs.moveTo(12, 100); legs.lineTo(12, 140);
+  c.addChild(legs);
+
+  // Shoes
+  const shoeL = new PIXI.Graphics();
+  shoeL.beginFill(C.dark);
+  shoeL.drawEllipse(-12, 145, 15, 6);
+  shoeL.endFill();
+  c.addChild(shoeL);
+  const shoeR = new PIXI.Graphics();
+  shoeR.beginFill(C.dark);
+  shoeR.drawEllipse(12, 145, 15, 6);
+  shoeR.endFill();
+  c.addChild(shoeR);
+
+  return c;
+}
+
+// ==================== DRAW CONTESTANT ====================
+function makeContestant(){
+  const c = new PIXI.Container();
+  const body = new PIXI.Graphics();
+  body.beginFill(0x3498db);
+  body.drawRoundedRect(-30, 0, 60, 90, 8);
+  body.endFill();
+  c.addChild(body);
+
+  const head = makeCircle(25, 0xF4C2A1);
+  head.y = -25;
+  c.addChild(head);
+
+  const eyeL = makeCircle(3, C.dark);
+  eyeL.x = -8; eyeL.y = -28;
+  c.addChild(eyeL);
+  const eyeR = makeCircle(3, C.dark);
+  eyeR.x = 8; eyeR.y = -28;
+  c.addChild(eyeR);
+
+  // Confused mouth
+  const mouth = new PIXI.Graphics();
+  mouth.lineStyle(2.5, C.dark);
+  mouth.moveTo(-6, -15);
+  mouth.lineTo(6, -15);
+  c.addChild(mouth);
+  c._mouth = mouth;
+
+  // Hair
+  const hair = new PIXI.Graphics();
+  hair.beginFill(0x5D4037);
+  hair.arc(0, -25, 25, -Math.PI, -0.1);
+  hair.endFill();
+  c.addChild(hair);
+
+  // Legs
+  const legs = new PIXI.Graphics();
+  legs.lineStyle(5, 0x2980b9);
+  legs.moveTo(-10, 90); legs.lineTo(-10, 130);
+  legs.moveTo(10, 90); legs.lineTo(10, 130);
+  c.addChild(legs);
+
+  return c;
+}
+
+// ==================== SPARKLE PARTICLE ====================
+function makeSparkles(container, x, y, count=20, color=C.gold){
+  for(let i=0; i<count; i++){
+    const s = makeCircle(2+Math.random()*4, color);
+    s.x = x; s.y = y;
+    s.alpha = 1;
+    container.addChild(s);
+    const angle = (Math.PI*2/count)*i;
+    const dist = 50+Math.random()*100;
+    gsap.to(s, {
+      x: x+Math.cos(angle)*dist,
+      y: y+Math.sin(angle)*dist - 30,
+      alpha: 0,
+      duration: 0.6+Math.random()*0.4,
+      ease: 'power2.out',
+      onComplete:()=>container.removeChild(s)
+    });
+  }
+}
+
+// ==================== BUILD SCENES ====================
+
+// --- SCENE 1: Title ---
+const s1 = createScene('title');
+const s1bg = makeRoundRect(1920, 1080, C.bg, 0);
+s1.addChild(s1bg);
+// Spotlights
+const spot1 = new PIXI.Graphics();
+spot1.beginFill(C.accent, 0.05);
+spot1.drawCircle(480, 400, 300);
+spot1.endFill();
+s1.addChild(spot1);
+const spot2 = new PIXI.Graphics();
+spot2.beginFill(C.gold, 0.05);
+spot2.drawCircle(1440, 400, 300);
+spot2.endFill();
+s1.addChild(spot2);
+
+// Three mini doors
+for(let i=0; i<3; i++){
+  const d = makeDoor(C.door, false, false, i+1);
+  d.x = 480 + i*480;
+  d.y = 420;
+  d.scale.set(0.5);
+  d.alpha = 0;
+  s1.addChild(d);
+  gsap.delayedCall(0.5+i*0.2, ()=>gsap.to(d, {alpha:0.6, duration:0.5}));
+}
+
+const titleMain = makeText('蒙提霍尔问题', 96, C.white, 'ZCOOL KuaiLe');
+titleMain.anchor.set(0.5); titleMain.x=960; titleMain.y=280;
+titleMain.alpha = 0;
+s1.addChild(titleMain);
+
+const titleEn = makeText('The Monty Hall Problem', 28, C.gray, 'Noto Sans SC');
+titleEn.anchor.set(0.5); titleEn.x=960; titleEn.y=360;
+titleEn.alpha = 0;
+s1.addChild(titleEn);
+
+const titleSub = makeText('换，还是不换？', 48, C.accent, 'ZCOOL KuaiLe');
+titleSub.anchor.set(0.5); titleSub.x=960; titleSub.y=700;
+titleSub.alpha = 0;
+s1.addChild(titleSub);
+
+// --- SCENE 2: Game Setup ---
+const s2 = createScene('setup');
+// Stage floor
+const stage = new PIXI.Graphics();
+stage.beginFill(C.stage);
+stage.drawRect(0, 650, 1920, 430);
+stage.endFill();
+s2.addChild(stage);
+
+// Stage lights
+for(let i=0; i<5; i++){
+  const light = new PIXI.Graphics();
+  light.beginFill(C.gold, 0.03);
+  const lx = 192 + i*384;
+  light.moveTo(lx, 0);
+  light.lineTo(lx-200, 650);
+  light.lineTo(lx+200, 650);
+  light.closePath();
+  light.endFill();
+  s2.addChild(light);
+}
+
+// Three doors
+const doors = [];
+for(let i=0; i<3; i++){
+  const d = makeDoor(C.door, i!==1, i===1, i+1);
+  d.x = 380 + i*580;
+  d.y = 430;
+  doors.push(d);
+  s2.addChild(d);
+}
+
+// Host
+const host = makeHost();
+host.x = 960; host.y = 750;
+host.alpha = 0;
+s2.addChild(host);
+
+// Contestant
+const contestant = makeContestant();
+contestant.x = 160; contestant.y = 750;
+contestant.alpha = 0;
+s2.addChild(contestant);
+
+// Choice indicator (arrow)
+const arrow = new PIXI.Graphics();
+arrow.beginFill(C.accent);
+arrow.moveTo(0, 0);
+arrow.lineTo(-20, -30);
+arrow.lineTo(20, -30);
+arrow.closePath();
+arrow.endFill();
+arrow.x = 380; arrow.y = 640;
+arrow.alpha = 0;
+s2.addChild(arrow);
+
+// Speech bubbles
+function makeBubble(text, color=C.white, bgColor=0x000000){
+  const c = new PIXI.Container();
+  const t = makeText(text, 28, color, 'ZCOOL KuaiLe');
+  t.anchor.set(0.5);
+  const bg = makeRoundRect(t.width+40, t.height+20, bgColor, 12, 0.8);
+  c.addChild(bg);
+  c.addChild(t);
+  c.alpha = 0;
+  return c;
+}
+
+const bubble1 = makeBubble('我选1号门！', C.accent);
+bubble1.x = 160; bubble1.y = 620;
+s2.addChild(bubble1);
+
+const bubble2 = makeBubble('让我打开3号门...', C.gold);
+bubble2.x = 960; bubble2.y = 620;
+s2.addChild(bubble2);
+
+const bubble3 = makeBubble('要换到2号门吗？', C.gold);
+bubble3.x = 960; bubble3.y = 620;
+s2.addChild(bubble3);
+
+// --- SCENE 3: Probability explanation ---
+const s3 = createScene('prob');
+const s3bg = makeRoundRect(1920, 1080, C.bgLight, 0);
+s3.addChild(s3bg);
+
+// Prob bars
+const probTitle = makeText('概率分析', 64, C.white, 'ZCOOL KuaiLe');
+probTitle.anchor.set(0.5); probTitle.x=960; probTitle.y=80;
+s3.addChild(probTitle);
+
+// Not switch
+const noSwitchLabel = makeText('不换门', 36, C.gray, 'ZCOOL KuaiLe');
+noSwitchLabel.anchor.set(0.5); noSwitchLabel.x=480; noSwitchLabel.y=200;
+s3.addChild(noSwitchLabel);
+
+const noSwitchBar = makeRoundRect(0, 80, C.accent, 8);
+noSwitchBar.x = 480; noSwitchBar.y = 300;
+s3.addChild(noSwitchBar);
+const noSwitchPct = makeText('33.3%', 48, C.accent, 'ZCOOL KuaiLe');
+noSwitchPct.anchor.set(0.5); noSwitchPct.x=480; noSwitchPct.y=380;
+noSwitchPct.alpha=0;
+s3.addChild(noSwitchPct);
+
+// Switch
+const switchLabel = makeText('换门', 36, C.green, 'ZCOOL KuaiLe');
+switchLabel.anchor.set(0.5); switchLabel.x=1440; switchLabel.y=200;
+s3.addChild(switchLabel);
+
+const switchBar = makeRoundRect(0, 80, C.green, 8);
+switchBar.x = 1440; switchBar.y = 300;
+s3.addChild(switchBar);
+const switchPct = makeText('66.7%', 48, C.green, 'ZCOOL KuaiLe');
+switchPct.anchor.set(0.5); switchPct.x=1440; switchPct.y=380;
+switchPct.alpha=0;
+s3.addChild(switchPct);
+
+// Explanation text
+const explainText = makeText('你第一次选中汽车的概率是 1/3\n所以汽车在另外两扇门后的概率是 2/3\n主持人帮你排除了一扇山羊门\n2/3 的概率就集中到了剩下那扇门上！', 32, C.white, 'Noto Sans SC');
+explainText.anchor.set(0.5); explainText.x=960; explainText.y=600;
+explainText.alpha=0;
+s3.addChild(explainText);
+
+// Big conclusion
+const conclusionText = makeText('换门，赢的概率翻倍！', 64, C.gold, 'ZCOOL KuaiLe');
+conclusionText.anchor.set(0.5); conclusionText.x=960; conclusionText.y=800;
+conclusionText.alpha=0;
+s3.addChild(conclusionText);
+
+// VS
+const vsText = makeText('VS', 72, C.gray, 'ZCOOL KuaiLe');
+vsText.anchor.set(0.5); vsText.x=960; vsText.y=290;
+vsText.alpha=0;
+s3.addChild(vsText);
+
+// --- SCENE 4: Ending ---
+const s4 = createScene('end');
+const s4bg = makeRoundRect(1920, 1080, C.bg, 0);
+s4.addChild(s4bg);
+
+const endText = makeText('直觉不一定对\n数学不会骗你', 72, C.white, 'ZCOOL KuaiLe');
+endText.anchor.set(0.5); endText.x=960; endText.y=400;
+endText.alpha=0;
+s4.addChild(endText);
+
+const endSub = makeText('—— 蒙提霍尔问题', 32, C.gray);
+endSub.anchor.set(0.5); endSub.x=960; endSub.y=550;
+endSub.alpha=0;
+s4.addChild(endSub);
+
+// ==================== MASTER TIMELINE ====================
+const M = gsap.timeline({delay:0.5});
+
+function sub(t){
+  M.to(subBar,{alpha:1,duration:0.3}).call(()=>{subText.text=t;});
+}
+function subHide(){M.to(subBar,{alpha:0,duration:0.3});}
+function subSwap(t){M.call(()=>{subText.text=t;});}
+function hold(d=2){M.to({},{duration:d});}
+function fadeS(name,d=0.5){M.to(scenes[name],{alpha:1,duration:d});}
+function hideS(name,d=0.5){M.to(scenes[name],{alpha:0,duration:d});}
+
+// === SCENE 1: Title ===
+fadeS('title',0.5);
+M.to(titleMain,{alpha:1,duration:0.8,ease:'back.out(1.5)'});
+M.to(titleEn,{alpha:1,duration:0.5},'<0.3');
+M.to(titleSub,{alpha:1,duration:0.6},'+=0.5');
+sub('在一个游戏节目中，你面前有三扇门');
+hold(3);
+hideS('title',0.6);
+subHide();
+
+// === SCENE 2: Game Setup ===
+fadeS('setup',0.5);
+sub('一扇门后面是汽车，另外两扇后面是山羊');
+hold(3);
+
+// Contestant walks in
+M.to(contestant,{alpha:1,x:380,duration:1,ease:'power2.out'});
+subSwap('选手选择了1号门');
+M.to(arrow,{alpha:1,duration:0.3});
+M.to(bubble1,{alpha:1,duration:0.4,ease:'back.out(2)'});
+hold(2);
+M.to(bubble1,{alpha:0,duration:0.3});
+
+// Host appears
+subSwap('主持人知道门后面是什么');
+M.to(host,{alpha:1,duration:0.5});
+hold(2);
+
+// Host opens door 3 (goat)
+subSwap('他打开了3号门，后面是一只山羊');
+M.to(bubble2,{alpha:1,duration:0.4,ease:'back.out(2)'});
+hold(1);
+// Open door 3 — slide panel away, show goat
+M.to(doors[2]._panel,{alpha:0,duration:0.5});
+M.to(doors[2]._qmark,{alpha:0,duration:0.3},'<');
+M.to(doors[2]._goat,{alpha:1,duration:0.5});
+hold(2);
+M.to(bubble2,{alpha:0,duration:0.3});
+
+// Ask to switch
+subSwap('现在，你要换到2号门吗？');
+M.to(bubble3,{alpha:1,duration:0.4,ease:'back.out(2)'});
+
+// Question marks bounce on doors 1 and 2
+M.to(doors[0]._qmark,{alpha:0.8,y:40,duration:0.3,yoyo:true,repeat:3});
+M.to(doors[1]._qmark,{alpha:0.8,y:40,duration:0.3,yoyo:true,repeat:3},'<');
+hold(3);
+M.to(bubble3,{alpha:0,duration:0.3});
+
+// Reveal: switch to door 2 → car!
+subSwap('正确答案是：换！');
+// Move arrow to door 2
+M.to(arrow,{x:960,duration:0.5,ease:'power2.inOut'});
+M.to(contestant,{x:780,duration:0.5},'<');
+hold(1);
+
+// Open door 2 — car!
+M.to(doors[1]._panel,{alpha:0,duration:0.5});
+M.to(doors[1]._qmark,{alpha:0,duration:0.3},'<');
+M.to(doors[1]._car,{alpha:1,duration:0.5});
+M.call(()=>makeSparkles(s2, 960, 400, 30, C.gold));
+hold(1);
+
+// Open door 1 — goat
+subSwap('1号门后面其实是山羊');
+M.to(doors[0]._panel,{alpha:0,duration:0.5});
+M.to(doors[0]._qmark,{alpha:0,duration:0.3},'<');
+M.to(doors[0]._goat,{alpha:1,duration:0.5});
+hold(2);
+subHide();
+hideS('setup',0.6);
+
+// === SCENE 3: Probability ===
+fadeS('prob',0.5);
+sub('为什么换门的胜率更高？');
+hold(2);
+
+// Animate bars
+M.to(vsText,{alpha:1,duration:0.3});
+
+// No switch bar grows to 33%
+M.to(noSwitchBar.scale,{x:200,duration:1,ease:'power2.out'});
+M.to(noSwitchPct,{alpha:1,duration:0.3});
+hold(0.5);
+
+// Switch bar grows to 67%
+subSwap('换门的概率是不换的两倍');
+M.to(switchBar.scale,{x:400,duration:1,ease:'power2.out'});
+M.to(switchPct,{alpha:1,duration:0.3});
+hold(2);
+
+// Explanation
+M.to(explainText,{alpha:1,duration:0.6});
+subSwap('主持人帮你排除了一个错误选项');
+hold(5);
+
+// Conclusion
+M.to(conclusionText,{alpha:1,duration:0.6,ease:'back.out(1.5)'});
+M.call(()=>makeSparkles(s3, 960, 800, 25, C.gold));
+hold(3);
+subHide();
+hideS('prob',0.6);
+
+// === SCENE 4: Ending ===
+fadeS('end',0.5);
+M.to(endText,{alpha:1,duration:0.8,ease:'power2.out'});
+M.to(endSub,{alpha:1,duration:0.5},'+=0.5');
+M.call(()=>makeSparkles(s4, 960, 400, 40, C.accent));
+hold(4);
+hideS('end',1);
+
+// Progress
+M.eventCallback('onUpdate',()=>{
+  progBar.scale.x = M.progress()*1920;
+});
+}
+</script>
+</body>
+</html>
