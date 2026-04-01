@@ -741,258 +741,311 @@ svg text{font-family:'Noto Sans SC',sans-serif;}
   </div>
 </div>
 
+<!-- Play button overlay -->
+<div id="playBtn" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:2000;display:flex;align-items:center;justify-content:center;cursor:pointer;">
+  <div style="text-align:center;">
+    <div style="font-size:120px;color:#fff;">▶</div>
+    <div style="font-size:36px;color:#aaa;margin-top:20px;font-family:'Noto Sans SC',sans-serif;">点击播放</div>
+  </div>
+</div>
+<audio id="narration" preload="auto" src="narration.mp3"></audio>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script>
-const M = gsap.timeline({delay:0.3});
+// Wait for click to start (browser autoplay policy)
+document.getElementById('playBtn').addEventListener('click', function(){
+  this.style.display='none';
+  startAnimation();
+});
+
+function startAnimation(){
+const audio = document.getElementById('narration');
+audio.play();
+
+const M = gsap.timeline();
 const $ = s => document.querySelector(s);
-const sub = (t,d=4) => {
-  M.to('#subBar',{opacity:1,duration:0.3})
-   .set('#subText',{textContent:t})
-   .to({},{duration:d})
-   .to('#subBar',{opacity:0,duration:0.3});
-};
+
+// Helpers
 const subOn = t => { M.to('#subBar',{opacity:1,duration:0.3}).set('#subText',{textContent:t}); };
 const subOff = () => { M.to('#subBar',{opacity:0,duration:0.3}); };
-const subChange = (t,d=4) => { M.set('#subText',{textContent:t}).to({},{duration:d}); };
+const subChange = t => { M.set('#subText',{textContent:t}); };
 const fadeIn = (sel,d=0.5) => M.to(sel,{opacity:1,duration:d});
 const fadeOut = (sel,d=0.5) => M.to(sel,{opacity:0,duration:d});
 const hold = (d=2) => M.to({},{duration:d});
 
-// ===== SCENE 1: Black intro (0-8s) =====
+/*
+ * Audio timeline (from concat):
+ * s01:  0.00 -  5.74  (intro)
+ * gap:  5.74 -  7.74
+ * s02:  7.74 - 13.71  (plane bullets)
+ * gap: 13.71 - 14.71
+ * s03: 14.71 - 20.81  (officers)
+ * gap: 20.81 - 21.81
+ * s04: 21.81 - 33.78  (wald)
+ * gap: 33.78 - 34.78
+ * s05: 34.78 - 38.89  (conclusion)
+ * gap: 38.89 - 42.89  (scene 6 concept)
+ * s07: 42.89 - 58.78  (taleb)
+ * gap: 58.78 - 59.78
+ * s08: 59.78 - 72.11  (kids)
+ * gap: 72.11 - 73.11
+ * s09: 73.11 - 86.72  (selective)
+ * gap: 86.72 - 87.72
+ * s10: 87.72 - 100.25 (attribution)
+ * gap: 100.25 - 101.25
+ * s11: 101.25 - 112.67 (cocoon)
+ * gap: 112.67 - 115.67 (scene 12)
+ * s13: 115.67 - 130.91 (frameworks)
+ * gap: 130.91 - 131.91
+ * s14: 131.91 - 159.87 (bayes)
+ * gap: 159.87 - 160.87
+ * s15: 160.87 - 168.14 (ending narration)
+ * gap: 168.14 - 176.14 (scenes 16-17)
+ */
+
+// ===== SCENE 1: Black intro (0 - 7.74s) =====
 fadeIn('#s1',0.3);
 M.to('#s1 .intro-text',{opacity:1,duration:1.2,ease:'power2.out'});
 hold(4);
 M.to('#s1 .intro-text',{opacity:0,duration:0.8});
 fadeOut('#s1',0.5);
 
-// Show corners
+// Show corners (during gap)
 M.to('#cornerTitle',{opacity:1,duration:0.5});
 M.to('#cornerRight',{opacity:1,duration:0.5},'<');
 
-// ===== SCENE 2: Plane + bullets (8-20s) =====
+// ===== SCENE 2: Plane + bullets (7.74 - 13.71s) =====
 fadeIn('#s2',0.5);
 subOn('军方统计了返航飞机的弹孔分布');
-hold(1);
 
-// Bullet holes appear one by one
+// Bullet holes
 const bhs = Array.from({length:15},(_,i)=>`#b${i+1}`);
 bhs.forEach((bh,i) => {
-  M.to(bh,{opacity:1,scale:1.3,duration:0.1,ease:'back.out(4)'},`+=${0.15}`)
-   .to(bh,{scale:1,duration:0.1});
-  if(i===4) { subChange('以确定哪些部位需要加固',4); }
+  M.to(bh,{opacity:1,scale:1.3,duration:0.08,ease:'back.out(4)'},`+=${0.12}`)
+   .to(bh,{scale:1,duration:0.08});
+  if(i===7) subChange('以确定哪些部位需要加固');
 });
-hold(1);
+hold(0.5);
 
-// ===== SCENE 3: Officers suggest (20-30s) =====
-subChange('于是建议加强这些部位的防护',3);
-// Wing highlight
-M.to('#wingHL',{opacity:1,duration:0.8,strokeDashoffset:0});
+// ===== SCENE 3: Officers suggest (14.71 - 20.81s) =====
+subChange('于是建议加强这些部位的防护');
+M.to('#wingHL',{opacity:1,duration:0.8});
 M.to('#arrowL',{opacity:1,duration:0.5},'<0.3');
 M.to('#arrowR',{opacity:1,duration:0.5},'<');
-hold(1);
-
-subChange('也认同应该加强机翼的保护',3);
+hold(1.5);
+subChange('也认同应该加强机翼的保护');
 fadeIn('#officer',0.6);
-hold(2);
+hold(2.5);
 
-// ===== SCENE 4: Wald disagrees (30-40s) =====
-subChange('真正需要防护的是机尾而不是机翼',4);
+// ===== SCENE 4: Wald disagrees (21.81 - 33.78s) =====
+subChange('真正需要防护的是机尾而不是机翼');
 fadeIn('#wald',0.6);
 M.to('#tailHL',{opacity:1,duration:0.8});
-hold(2);
-
-subChange('因为那些机尾中弹的飞机早已坠毁',4);
+hold(3);
+subChange('因为那些机尾中弹的飞机早已坠毁');
 fadeIn('#crashed',0.6);
-hold(2);
-
-subChange('而那些沉默的未能返航的数据',3);
+hold(3);
+subChange('而那些沉默的未能返航的数据');
 M.to('#crashBox',{opacity:1,duration:0.8});
-hold(2);
+hold(2.5);
 subOff();
 fadeOut('#s2',0.6);
 
-// ===== SCENE 5: Conclusion (40-48s) =====
+// ===== SCENE 5: Conclusion (34.78 - 38.89s) =====
 fadeIn('#s5',0.5);
-sub('后来事实表明该决策是无比正确的',4);
-M.to('#s5labelL',{opacity:1,duration:0.5},'<1');
-M.to('#s5labelR',{opacity:1,duration:0.5},'<0.5');
-M.to('#s5strike',{opacity:1,duration:0.3},'<1');
-hold(1);
+subOn('后来事实表明该决策是无比正确的');
+M.to('#s5labelL',{opacity:1,duration:0.5});
+M.to('#s5labelR',{opacity:1,duration:0.5},'<0.3');
+M.to('#s5strike',{opacity:1,duration:0.3},'+=0.5');
+hold(1.5);
+subOff();
 fadeOut('#s5',0.6);
 
-// ===== SCENE 6: Concept (48-55s) =====
+// ===== SCENE 6: Concept (38.89 - 42.89s, silence) =====
 fadeIn('#s6',0.5);
 M.to('#s6box',{opacity:1,duration:0.8});
 M.to('#s6planeL',{opacity:1,duration:0.5},'<0.3');
 M.to('#s6planeR',{opacity:1,duration:0.5},'<0.3');
 M.to('#s6title',{opacity:1,duration:0.8,ease:'power2.out'});
-hold(3);
+hold(1.5);
 fadeOut('#s6',0.6);
 
-// ===== SCENE 7: Taleb (55-65s) =====
+// ===== SCENE 7: Taleb (42.89 - 58.78s) =====
 fadeIn('#s7',0.5);
 subOn('塔勒布在《黑天鹅》中说过');
 fadeIn('#s7reader',0.6);
-hold(2);
-subChange('就像你刷到100个辞职创业',4);
-fadeIn('#s7success',0.6);
-M.to('#s7quote1',{opacity:1,duration:0.5},'<0.5');
+M.to('#s7quote1',{opacity:1,duration:0.5},'+=1');
 M.to('#s7quote2',{opacity:1,duration:0.5},'<0.5');
 hold(2);
-subChange('背后9,999个赔光积蓄的失败者一样',4);
+subChange('就像你刷到100个辞职创业');
+fadeIn('#s7success',0.6);
+hold(4);
+subChange('背后9,999个赔光积蓄的失败者一样');
 fadeIn('#s7crowd',0.8);
-hold(2);
+hold(4);
 subOff();
 fadeOut('#s7',0.6);
 
-// ===== SCENE 8: 别人家的孩子 (65-78s) =====
+// ===== SCENE 8: 别人家的孩子 (59.78 - 72.11s) =====
 fadeIn('#s8',0.5);
 subOn('经常听到你看别人家的孩子');
 fadeIn('#s8box1',0.6);
 fadeIn('#s8mom',0.6);
-hold(3);
-subChange('传到我们家长的耳朵里',3);
+hold(5);
+subChange('传到我们家长的耳朵里');
 fadeIn('#s8box2',0.6);
-hold(2);
+hold(4);
 subOff();
 fadeOut('#s8',0.6);
 
-// ===== SCENE 9: 选择性关注 (78-90s) =====
+// ===== SCENE 9: 选择性关注 (73.11 - 86.72s) =====
 fadeIn('#s9',0.5);
-subOn('一选择性关注');
+subOn('选择性关注');
 fadeIn('#s9title',0.6);
-hold(2);
-subChange('而失败经验常被视为负面被过滤',4);
+hold(3);
+subChange('而失败经验常被视为负面被过滤');
 M.to('#s9bg1',{opacity:1,duration:0.8});
 M.to('#s9bg2',{opacity:1,duration:0.8},'<0.3');
-hold(2);
-subChange('因为想给差评的买家早已经被埋葬',4);
+hold(4);
+subChange('因为想给差评的买家早已经被埋葬');
 fadeIn('#s9para',0.6);
-hold(2);
+hold(3);
 subOff();
 fadeOut('#s9',0.6);
 
-// ===== SCENE 10: 归因谬误 (90-100s) =====
+// ===== SCENE 10: 归因谬误 (87.72 - 100.25s) =====
 fadeIn('#s10',0.5);
 subOn('人们习惯将幸存归功于可见因素');
 fadeIn('#s10title',0.5);
 fadeIn('#s10person',0.5);
-hold(2);
-subChange('便断言烟酒无害',3);
+hold(4);
+subChange('便断言烟酒无害');
 fadeIn('#s10old',0.6);
 fadeIn('#s10text',0.6);
-hold(2);
+hold(5);
 subOff();
 fadeOut('#s10',0.6);
 
-// ===== SCENE 11: 信息茧房 (100-115s) =====
+// ===== SCENE 11: 信息茧房 (101.25 - 112.67s) =====
 fadeIn('#s11',0.5);
-subOn('三信息茧房算法推送会强化既有认知');
+subOn('信息茧房 算法推送会强化既有认知');
 fadeIn('#s11title',0.5);
-hold(2);
-subChange('当你频繁刷到辞职创业逆袭的视频',4);
+hold(4);
+subChange('当你频繁刷到辞职创业逆袭的视频');
 fadeIn('#s11person',0.5);
 fadeIn('#s11bubbles',0.6);
-hold(3);
+hold(5);
 subOff();
 fadeOut('#s11',0.6);
 
-// ===== SCENE 12: 打破困局 (115-120s) =====
+// ===== SCENE 12: 打破困局 (112.67 - 115.67s, silence) =====
 fadeIn('#s12',0.3);
 M.to('#s12text',{opacity:1,duration:0.8,ease:'power2.out'});
-hold(2);
+hold(1.5);
 fadeOut('#s12',0.5);
 
-// ===== SCENE 13: Three frameworks (120-135s) =====
+// ===== SCENE 13: Three frameworks (115.67 - 130.91s) =====
 fadeIn('#s13',0.5);
-subOn('正如统计学家瓦尔德坚持');
+subOn('正如统计学家瓦尔德所坚持的');
 fadeIn('#fw_wald',0.5);
 M.to('#fw1',{opacity:1,duration:0.6});
 M.to('#fw1t',{opacity:1,duration:0.4},'<0.3');
-M.to('#fw2',{opacity:1,duration:0.6},'+=0.3');
+hold(1);
+M.to('#fw2',{opacity:1,duration:0.6});
 M.to('#fw2t',{opacity:1,duration:0.4},'<0.3');
-M.to('#fw3',{opacity:1,duration:0.6},'+=0.3');
+hold(1);
+M.to('#fw3',{opacity:1,duration:0.6});
 M.to('#fw3t',{opacity:1,duration:0.4},'<0.3');
 hold(1);
-subChange('也要主动挖掘未被讲述的故事',4);
+subChange('也要主动挖掘未被讲述的故事');
 fadeIn('#fw_crash',0.5);
 fadeIn('#fw_crashT',0.5);
-hold(1);
-fadeIn('#fw_book',0.6);
 hold(2);
+fadeIn('#fw_book',0.6);
+hold(4);
 subOff();
 fadeOut('#s13',0.6);
 
-// ===== SCENE 14: Bayes + Seatbelt (135-170s) =====
+// ===== SCENE 14: Bayes + Seatbelt (131.91 - 159.87s) =====
 fadeIn('#s14',0.5);
 subOn('例如设想一次严重车祸');
 M.to('#s14title',{opacity:1,duration:0.5});
 M.to('#s14fw3',{opacity:1,duration:0.5},'<0.3');
 M.to('#s14fw3t',{opacity:1,duration:0.4},'<0.3');
 M.to('#s14formula',{opacity:1,duration:0.5});
+fadeIn('#s14crash',0.6);
+hold(2);
 M.to('#s14f1',{opacity:1,duration:0.4});
 M.to('#s14f1t',{opacity:1,duration:0.3},'<0.2');
 M.to('#s14f2',{opacity:1,duration:0.4});
 M.to('#s14f2t',{opacity:1,duration:0.3},'<0.2');
-fadeIn('#s14crash',0.6);
-hold(2);
-
-subChange('而几乎所有系安全带的驾驶员幸存',4);
-fadeIn('#s14left',0.5);
-fadeIn('#s14right',0.5);
-hold(2);
-
-subChange('实际上正相反',3);
-M.to('#s14survive',{opacity:1,duration:0.4});
-M.to('#s14circleR',{opacity:1,duration:0.4});
 hold(1);
 
-subChange('才导致幸存者中系带者占比极高',4);
-M.to('#s14detail',{opacity:1,duration:0.4});
-hold(2);
+subChange('而几乎所有系安全带的驾驶员幸存');
+fadeIn('#s14left',0.5);
+fadeIn('#s14right',0.5);
+hold(4);
 
-subChange('我们才能评估安全带的真实保护作用',4);
-M.to('#s14circleL',{opacity:1,duration:0.4});
+subChange('实际上正相反');
+M.to('#s14survive',{opacity:1,duration:0.4});
+M.to('#s14circleR',{opacity:1,duration:0.4});
 hold(3);
+
+subChange('才导致幸存者中系带者占比极高');
+M.to('#s14detail',{opacity:1,duration:0.4});
+hold(4);
+
+subChange('我们才能评估安全带的真实保护作用');
+M.to('#s14circleL',{opacity:1,duration:0.4});
+hold(5);
 subOff();
 fadeOut('#s14',0.6);
 
-// ===== SCENE 15: 成功者 vs 普通人 (170-178s) =====
+// ===== SCENE 15: 成功者 vs 普通人 (160.87 - 168.14s) =====
 fadeIn('#s15',0.5);
 subOn('我们都是被数据筛选的囚徒');
 fadeIn('#s15person',0.5);
 fadeIn('#s15success',0.6);
-hold(2);
-subChange('在于看见别人看不到的盲区',4);
+hold(3);
+subChange('在于看见别人看不到的盲区');
 fadeIn('#s15normal',0.8);
 hold(3);
 subOff();
 fadeOut('#s15',0.6);
 
-// ===== SCENE 16: Happy ending (178-185s) =====
+// ===== SCENE 16: Happy ending (168.14 - 172s) =====
 fadeIn('#s16',0.5);
 fadeIn('#s16person',0.6);
 M.to('#s16left',{opacity:1,duration:0.5},'+=0.3');
 M.to('#s16right',{opacity:1,duration:0.5},'<0.2');
-hold(3);
+hold(2);
 fadeOut('#s16',0.5);
 
-// ===== SCENE 17: Credits (185-191s) =====
-// Hide corners
+// ===== SCENE 17: Credits (172 - 176s) =====
 M.to('#cornerTitle',{opacity:0,duration:0.5});
 M.to('#cornerRight',{opacity:0,duration:0.5},'<');
 fadeIn('#s17',0.5);
 M.to('#s17text',{opacity:1,duration:1});
-hold(3);
+hold(2);
 fadeOut('#s17',1);
 
-// Progress bar
+// Progress bar synced to audio
 M.eventCallback('onUpdate',()=>{
   $('#prog').style.width=(M.progress()*100)+'%';
 });
 M.eventCallback('onComplete',()=>{
+  audio.pause();
   console.log('Done. Duration:',M.duration()+'s');
 });
+
+// Keep animation and audio roughly in sync
+setInterval(()=>{
+  if(!audio.paused && Math.abs(M.time() - audio.currentTime) > 0.5){
+    M.time(audio.currentTime);
+  }
+},500);
+
+} // end startAnimation
 </script>
 </body>
 </html>
