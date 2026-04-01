@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920, height=1080">
+<title>幸存者偏差 - 增强版 (rough.js + particles)</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;700;900&family=Noto+Sans+SC:wght@300;400;700;900&family=ZCOOL+KuaiLe&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+body{width:1920px;height:1080px;overflow:hidden;background:#f5f0e8;font-family:'Noto Sans SC',sans-serif;position:relative;}
+
+/* Paper texture with grain */
+body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:999;
+  background:radial-gradient(ellipse at 20% 50%,rgba(139,119,90,0.06) 0%,transparent 50%),
+  radial-gradient(ellipse at 80% 20%,rgba(139,119,90,0.09) 0%,transparent 50%);}
+
+/* Animated background subtle grain */
+@keyframes grain{0%{transform:translate(0,0)}10%{transform:translate(-1px,-1px)}20%{transform:translate(1px,0)}30%{transform:translate(0,1px)}40%{transform:translate(-1px,0)}50%{transform:translate(1px,-1px)}60%{transform:translate(0,0)}70%{transform:translate(-1px,1px)}80%{transform:translate(1px,0)}90%{transform:translate(0,-1px)}100%{transform:translate(0,0)}}
+body::after{content:'';position:fixed;top:-10px;left:-10px;width:calc(100% + 20px);height:calc(100% + 20px);pointer-events:none;z-index:998;opacity:0.025;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation:grain 0.5s steps(1) infinite;}
+
+.progress{position:fixed;top:0;left:0;height:3px;background:#c0392b;width:0;z-index:1100;}
+.corner-title{position:fixed;top:20px;left:30px;z-index:990;opacity:0;}
+.corner-title span{font-family:'ZCOOL KuaiLe',serif;font-size:36px;color:#c0392b;font-weight:900;letter-spacing:4px;}
+.corner-right{position:fixed;top:20px;right:30px;z-index:990;opacity:0;writing-mode:vertical-rl;font-size:18px;color:#999;letter-spacing:4px;}
+
+.sub-bar{position:fixed;bottom:0;left:0;width:100%;z-index:990;opacity:0;}
+.sub-bg{background:rgba(40,40,40,0.85);padding:20px 60px;display:flex;align-items:center;justify-content:center;}
+.sub-text{color:#fff;font-size:36px;text-align:center;font-weight:400;letter-spacing:2px;flex:1;}
+.sub-credit{color:#aaa;font-size:18px;position:absolute;right:40px;bottom:25px;}
+
+.scene{position:absolute;top:0;left:0;width:1920px;height:1080px;opacity:0;display:flex;align-items:center;justify-content:center;}
+
+/* Scene 1 */
+#s1{background:#111;flex-direction:column;}
+#s1 .intro-text{color:#eee;font-size:48px;text-align:center;line-height:1.8;opacity:0;}
+
+/* Particle canvas */
+#particleCanvas{position:fixed;top:0;left:0;width:1920px;height:1080px;z-index:995;pointer-events:none;}
+
+/* Rough canvas layer */
+#roughCanvas{position:absolute;top:0;left:0;width:1920px;height:1080px;pointer-events:none;}
+
+.calli{font-family:'ZCOOL KuaiLe','Noto Serif SC',serif;}
+
+/* Scene content containers */
+.scene-content{position:relative;width:100%;height:100%;padding:80px 120px;}
+
+/* Lottie containers */
+.lottie-container{position:absolute;}
+dotlottie-player{background:transparent;}
+
+/* Scene-specific */
+#s6{flex-direction:column;}
+#s12 .big-text{font-size:96px;color:#333;font-weight:900;opacity:0;}
+
+/* Play overlay */
+#playBtn{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:2000;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-direction:column;gap:20px;}
+#playBtn:hover .play-circle{transform:scale(1.1);}
+.play-circle{width:120px;height:120px;border:3px solid rgba(255,255,255,0.8);border-radius:50%;display:flex;align-items:center;justify-content:center;transition:transform 0.3s;}
+.play-circle::after{content:'';width:0;height:0;border-style:solid;border-width:25px 0 25px 45px;border-color:transparent transparent transparent #fff;margin-left:8px;}
+.play-label{font-size:24px;color:rgba(255,255,255,0.6);letter-spacing:8px;}
+
+/* Enhanced text styles */
+.hand-written{font-family:'ZCOOL KuaiLe',cursive;letter-spacing:2px;}
+.red-emphasis{color:#c0392b;font-weight:900;}
+.fade-element{opacity:0;}
+
+/* Cards with rough border effect */
+.rough-card{background:rgba(255,255,255,0.5);border-radius:12px;padding:30px;position:relative;}
+</style>
+</head>
+<body>
+<div class="progress" id="prog"></div>
+<canvas id="particleCanvas" width="1920" height="1080"></canvas>
+
+<div class="corner-title" id="cornerTitle"><span>- 幸存者偏差 -</span></div>
+<div class="corner-right" id="cornerRight">心理举例 无不良引导</div>
+
+<div class="sub-bar" id="subBar">
+  <div class="sub-bg">
+    <div class="sub-text" id="subText"></div>
+    <div class="sub-credit">@爱观察的汤姆</div>
+  </div>
+</div>
+
+<!-- Play Button -->
+<div id="playBtn">
+  <div class="play-circle"></div>
+  <div class="play-label">点击播放</div>
+</div>
+
+<!-- ====== SCENE 1: Black Intro ====== -->
+<div class="scene" id="s1">
+  <div class="intro-text">很多时候，我们看到的，<br>往往只是一个视角，而非真相。</div>
+</div>
+
+<!-- ====== SCENE 2: Plane + Bullet Holes (rough.js drawn) ====== -->
+<div class="scene" id="s2">
+  <canvas id="roughPlane" width="1920" height="1080" style="position:absolute;top:0;left:0;"></canvas>
+  <!-- Labels will be added via GSAP -->
+  <div id="s2label1" class="fade-element hand-written" style="position:absolute;top:720px;left:960px;transform:translateX(-50%);font-size:32px;color:#c0392b;">← 中弹多 = 这里安全！</div>
+  <div id="s2label2" class="fade-element hand-written" style="position:absolute;top:160px;right:180px;font-size:32px;color:#27ae60;">没弹孔 = 致命区域 →</div>
+
+  <!-- Officer (right) -->
+  <div id="s2officer" class="fade-element" style="position:absolute;right:100px;top:350px;">
+    <div style="background:#fff;border:2px solid #333;border-radius:10px;padding:15px 25px;margin-bottom:15px;position:relative;">
+      <span class="hand-written" style="font-size:28px;font-weight:700;">加强机翼</span>
+      <div style="position:absolute;bottom:-10px;left:50%;width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-top:10px solid #333;"></div>
+    </div>
+  </div>
+
+  <!-- Wald (left) -->
+  <div id="s2wald" class="fade-element" style="position:absolute;left:100px;top:350px;">
+    <div style="background:#fff;border:2px solid #333;border-radius:10px;padding:15px 25px;margin-bottom:15px;position:relative;">
+      <span class="hand-written" style="font-size:28px;font-weight:700;color:#c0392b;">保护机尾</span>
+      <div style="position:absolute;bottom:-10px;left:50%;width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-top:10px solid #333;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== SCENE 5: Conclusion ====== -->
+<div class="scene" id="s5">
+  <canvas id="roughConclusion" width="1920" height="1080" style="position:absolute;top:0;left:0;"></canvas>
+  <div id="s5labelL" class="fade-element hand-written" style="position:absolute;left:300px;top:600px;font-size:48px;color:#333;">加强机尾 ✅</div>
+  <div id="s5labelR" class="fade-element hand-written" style="position:absolute;right:300px;top:600px;font-size:48px;color:#333;text-decoration:line-through;text-decoration-color:#c0392b;text-decoration-thickness:4px;">加强机翼 ❌</div>
+</div>
+
+<!-- ====== SCENE 6: Concept ====== -->
+<div class="scene" id="s6">
+  <canvas id="roughConcept" width="1920" height="1080" style="position:absolute;top:0;left:0;"></canvas>
+  <div id="s6title" class="fade-element calli" style="font-size:120px;color:#333;font-weight:900;z-index:10;text-shadow:2px 2px 0 rgba(192,57,43,0.1);">幸存者偏差</div>
+</div>
+
+<!-- ====== SCENE 7: Taleb ====== -->
+<div class="scene" id="s7">
+  <canvas id="roughTaleb" width="1920" height="1080" style="position:absolute;top:0;left:0;"></canvas>
+  <div id="s7quote" class="fade-element" style="position:absolute;left:50%;top:55%;transform:translate(-50%,-50%);text-align:center;z-index:10;">
+    <p class="hand-written" style="font-size:36px;color:#333;line-height:1.8;">人类天生依赖可见的经验，<br>却忽略<span class="red-emphasis">"沉默的证据"</span>。</p>
+  </div>
+</div>
+
+<!-- ====== SCENE 10: 归因谬误 ====== -->
+<div class="scene" id="s10">
+  <canvas id="roughAttribution" width="1920" height="1080" style="position:absolute;top:0;left:0;"></canvas>
+  <div id="s10title" class="fade-element calli" style="position:absolute;top:80px;left:50%;transform:translateX(-50%);font-size:56px;color:#333;z-index:10;">归因谬误</div>
+  <div id="s10text" class="fade-element" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:10;">
+    <p class="hand-written" style="font-size:32px;color:#333;line-height:2;">一大爷抽烟喝酒<br>照样活到90岁<br><span style="font-size:40px;">↓</span></p>
+    <p class="hand-written red-emphasis" style="font-size:52px;margin-top:10px;">"烟酒无害"</p>
+  </div>
+</div>
+
+<!-- ====== SCENE 12: 打破困局 ====== -->
+<div class="scene" id="s12">
+  <div class="big-text calli" id="s12text">打破困局</div>
+</div>
+
+<!-- ====== SCENE 13: Three Frameworks ====== -->
+<div class="scene" id="s13">
+  <canvas id="roughFramework" width="1920" height="1080" style="position:absolute;top:0;left:0;"></canvas>
+  <div id="fw1box" class="fade-element" style="position:absolute;left:100px;top:180px;z-index:10;">
+    <div class="rough-card" style="width:400px;text-align:center;">
+      <div class="calli red-emphasis" style="font-size:48px;">01</div>
+      <div class="calli" style="font-size:36px;color:#333;margin-top:10px;">寻找沉默证据</div>
+      <p style="font-size:20px;color:#777;margin-top:10px;">主动去找那些"没有出现"的数据</p>
+    </div>
+  </div>
+  <div id="fw2box" class="fade-element" style="position:absolute;left:750px;top:180px;z-index:10;">
+    <div class="rough-card" style="width:400px;text-align:center;">
+      <div class="calli red-emphasis" style="font-size:48px;">02</div>
+      <div class="calli" style="font-size:36px;color:#333;margin-top:10px;">概率替代直觉</div>
+      <p style="font-size:20px;color:#777;margin-top:10px;">用基础概率而非个案做判断</p>
+    </div>
+  </div>
+  <div id="fw3box" class="fade-element" style="position:absolute;right:100px;top:180px;z-index:10;">
+    <div class="rough-card" style="width:400px;text-align:center;">
+      <div class="calli red-emphasis" style="font-size:48px;">03</div>
+      <div class="calli" style="font-size:36px;color:#333;margin-top:10px;">系统认知框架</div>
+      <p style="font-size:20px;color:#777;margin-top:10px;">关注整体样本而非筛选后的子集</p>
+    </div>
+  </div>
+  <!-- Arrows -->
+  <div id="fwArrow1" class="fade-element calli red-emphasis" style="position:absolute;left:530px;top:260px;font-size:64px;z-index:10;">→</div>
+  <div id="fwArrow2" class="fade-element calli red-emphasis" style="position:absolute;left:1180px;top:260px;font-size:64px;z-index:10;">→</div>
+</div>
+
+<!-- ====== SCENE 15: 成功者 vs 普通人 ====== -->
+<div class="scene" id="s15">
+  <canvas id="roughEnding" width="1920" height="1080" style="position:absolute;top:0;left:0;"></canvas>
+  <div id="s15center" class="fade-element calli" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:64px;color:#333;z-index:10;text-align:center;">
+    看见<span class="red-emphasis">看不见的</span>
+    <p style="font-size:28px;color:#888;margin-top:20px;font-weight:400;">那些沉默的数据，才是真相所在</p>
+  </div>
+</div>
+
+<!-- ====== SCENE 17: Credits ====== -->
+<div class="scene" id="s17">
+  <div id="s17text" class="fade-element calli" style="font-size:64px;color:#555;">@爱观察的汤姆</div>
+</div>
+
+<!-- Audio -->
+<audio id="narration" preload="auto" src="narration.mp3"></audio>
+
+<!-- Libraries -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/roughjs@4.6.6/bundled/rough.js"></script>
+
+<script>
+// ==================== PARTICLE SYSTEM ====================
+class ParticleSystem {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.particles = [];
+    this.running = false;
+  }
+
+  burst(x, y, count=20, color='#c0392b', spread=80) {
+    for(let i=0; i<count; i++){
+      const angle = (Math.PI*2/count)*i + Math.random()*0.5;
+      const speed = 2 + Math.random()*4;
+      const size = 2 + Math.random()*4;
+      this.particles.push({
+        x, y,
+        vx: Math.cos(angle)*speed*spread/80,
+        vy: Math.sin(angle)*speed*spread/80,
+        size,
+        color,
+        alpha: 1,
+        decay: 0.015 + Math.random()*0.02,
+        life: 1
+      });
+    }
+    if(!this.running) this.animate();
+  }
+
+  floatingDots(count=30) {
+    for(let i=0; i<count; i++){
+      this.particles.push({
+        x: Math.random()*1920,
+        y: Math.random()*1080,
+        vx: (Math.random()-0.5)*0.3,
+        vy: (Math.random()-0.5)*0.3,
+        size: 1+Math.random()*2,
+        color: `rgba(192,57,43,${0.1+Math.random()*0.15})`,
+        alpha: 0.1+Math.random()*0.2,
+        decay: 0,
+        life: 999
+      });
+    }
+    if(!this.running) this.animate();
+  }
+
+  clear() {
+    this.particles = [];
+    this.ctx.clearRect(0,0,1920,1080);
+  }
+
+  animate() {
+    this.running = true;
+    const loop = () => {
+      this.ctx.clearRect(0,0,1920,1080);
+      this.particles = this.particles.filter(p => p.alpha > 0.01 && p.life > 0);
+      for(const p of this.particles){
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.02; // gravity
+        p.alpha -= p.decay;
+        p.life -= p.decay;
+        this.ctx.save();
+        this.ctx.globalAlpha = Math.max(0, p.alpha);
+        this.ctx.fillStyle = p.color;
+        this.ctx.beginPath();
+        this.ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+        this.ctx.fill();
+        this.ctx.restore();
+      }
+      if(this.particles.length > 0) requestAnimationFrame(loop);
+      else this.running = false;
+    };
+    loop();
+  }
+}
+
+// ==================== ROUGH.JS DRAWING HELPERS ====================
+function drawRoughPlane(canvas, bulletHoles, highlights) {
+  const rc = rough.canvas(canvas);
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,1920,1080);
+
+  const cx=960, cy=400;
+
+  // Fuselage
+  rc.ellipse(cx, cy, 120, 440, {stroke:'#333', strokeWidth:2.5, roughness:1.2, fill:'rgba(232,224,208,0.8)', fillStyle:'solid'});
+
+  // Wings
+  rc.polygon([[cx-50,cy-30],[cx-350,cy-60],[cx-350,cy-30],[cx-50,cy+10]], {stroke:'#333', strokeWidth:2.5, roughness:1.5, fill:'rgba(232,224,208,0.8)', fillStyle:'solid'});
+  rc.polygon([[cx+50,cy-30],[cx+350,cy-60],[cx+350,cy-30],[cx+50,cy+10]], {stroke:'#333', strokeWidth:2.5, roughness:1.5, fill:'rgba(232,224,208,0.8)', fillStyle:'solid'});
+
+  // Tail wings
+  rc.polygon([[cx-30,cy+190],[cx-150,cy+170],[cx-150,cy+190],[cx-30,cy+210]], {stroke:'#333', strokeWidth:2, roughness:1.5, fill:'rgba(232,224,208,0.8)', fillStyle:'solid'});
+  rc.polygon([[cx+30,cy+190],[cx+150,cy+170],[cx+150,cy+190],[cx+30,cy+210]], {stroke:'#333', strokeWidth:2, roughness:1.5, fill:'rgba(232,224,208,0.8)', fillStyle:'solid'});
+
+  // Tail fin
+  rc.polygon([[cx-8,cy+210],[cx,cy+245],[cx+8,cy+210]], {stroke:'#333', strokeWidth:2, roughness:1.2});
+
+  // Engines
+  rc.ellipse(cx-160, cy-20, 44, 80, {stroke:'#333', strokeWidth:2, roughness:1, fill:'rgba(232,224,208,0.9)', fillStyle:'solid'});
+  rc.ellipse(cx+160, cy-20, 44, 80, {stroke:'#333', strokeWidth:2, roughness:1, fill:'rgba(232,224,208,0.9)', fillStyle:'solid'});
+
+  // Cockpit
+  rc.ellipse(cx, cy-190, 50, 90, {stroke:'#333', strokeWidth:2, roughness:0.8, fill:'rgba(200,220,240,0.4)', fillStyle:'solid'});
+
+  // Stars on wings
+  rc.circle(cx-250, cy-40, 36, {stroke:'#999', strokeWidth:1.2, roughness:0.8});
+  rc.circle(cx+250, cy-40, 36, {stroke:'#999', strokeWidth:1.2, roughness:0.8});
+
+  // Bullet holes
+  if(bulletHoles){
+    const holes = [
+      [cx-200,cy-50,7],[cx-280,cy-45,6],[cx-120,cy-40,5],[cx+180,cy-48,7],[cx+260,cy-42,6],
+      [cx+130,cy-35,5],[cx-30,cy-80,6],[cx+25,cy-40,7],[cx-20,cy+30,5],[cx+40,cy+80,6],
+      [cx-310,cy-50,5],[cx+310,cy-48,5],[cx-35,cy+130,5],[cx+20,cy+150,6],[cx+35,cy-100,5]
+    ];
+    for(let i=0; i<bulletHoles; i++){
+      if(i >= holes.length) break;
+      const [hx,hy,hr] = holes[i];
+      rc.circle(hx, hy, hr*2, {stroke:'#222', strokeWidth:1.5, roughness:0.5, fill:'#333', fillStyle:'solid'});
+      // Inner dark
+      ctx.save();
+      ctx.fillStyle='#111';
+      ctx.beginPath();
+      ctx.arc(hx,hy,hr*0.5,0,Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // Highlights
+  if(highlights === 'wings'){
+    rc.ellipse(cx, cy-20, 760, 200, {stroke:'#333', strokeWidth:2, roughness:1.5, strokeLineDash:[15,8]});
+  }
+  if(highlights === 'tail'){
+    rc.ellipse(cx, cy+195, 340, 130, {stroke:'#c0392b', strokeWidth:3, roughness:1.5, strokeLineDash:[12,6]});
+  }
+  if(highlights === 'both'){
+    rc.ellipse(cx, cy-20, 760, 200, {stroke:'#333', strokeWidth:2, roughness:1.5, strokeLineDash:[15,8]});
+    rc.ellipse(cx, cy+195, 340, 130, {stroke:'#c0392b', strokeWidth:3, roughness:1.5, strokeLineDash:[12,6]});
+    // Engine highlights (green dashed)
+    rc.ellipse(cx-160, cy-20, 70, 100, {stroke:'#27ae60', strokeWidth:2.5, roughness:1, strokeLineDash:[8,4]});
+    rc.ellipse(cx+160, cy-20, 70, 100, {stroke:'#27ae60', strokeWidth:2.5, roughness:1, strokeLineDash:[8,4]});
+    rc.ellipse(cx, cy-190, 70, 100, {stroke:'#27ae60', strokeWidth:2.5, roughness:1, strokeLineDash:[8,4]});
+  }
+}
+
+function drawRoughConcept(canvas) {
+  const rc = rough.canvas(canvas);
+  // Big red dashed box
+  rc.rectangle(310, 180, 1300, 500, {stroke:'#c0392b', strokeWidth:4, roughness:2, strokeLineDash:[18,8]});
+  // Small plane left
+  rc.ellipse(600, 380, 40, 140, {stroke:'#333', strokeWidth:2, roughness:1.5});
+  rc.line(580, 370, 480, 320, {stroke:'#333', strokeWidth:2, roughness:1.5});
+  rc.line(620, 370, 720, 320, {stroke:'#333', strokeWidth:2, roughness:1.5});
+  // Small plane right with holes
+  rc.ellipse(1300, 360, 70, 260, {stroke:'#333', strokeWidth:2, roughness:1.2, fill:'rgba(232,224,208,0.5)', fillStyle:'solid'});
+  rc.line(1260, 340, 1100, 310, {stroke:'#333', strokeWidth:2, roughness:1.5});
+  rc.line(1340, 340, 1500, 310, {stroke:'#333', strokeWidth:2, roughness:1.5});
+  // Holes on right plane
+  rc.circle(1270, 330, 8, {stroke:'#333', fill:'#333', fillStyle:'solid', roughness:0.5});
+  rc.circle(1330, 350, 8, {stroke:'#333', fill:'#333', fillStyle:'solid', roughness:0.5});
+  rc.circle(1290, 400, 8, {stroke:'#333', fill:'#333', fillStyle:'solid', roughness:0.5});
+}
+
+function drawRoughTaleb(canvas) {
+  const rc = rough.canvas(canvas);
+  // Reader figure (left)
+  rc.circle(250, 320, 56, {stroke:'#333', strokeWidth:2.5, roughness:1.2});
+  // Glasses
+  rc.circle(240, 320, 16, {stroke:'#333', strokeWidth:1.5, roughness:0.8});
+  rc.circle(260, 320, 16, {stroke:'#333', strokeWidth:1.5, roughness:0.8});
+  rc.line(248, 320, 252, 320, {stroke:'#333', strokeWidth:1.5});
+  // Body
+  rc.rectangle(212, 350, 76, 130, {stroke:'#333', strokeWidth:2.5, roughness:1.2, fill:'#222', fillStyle:'solid'});
+  // Book
+  rc.rectangle(290, 400, 40, 55, {stroke:'#333', strokeWidth:2, roughness:1, fill:'#f5f0e8', fillStyle:'solid'});
+
+  // Success group (right)
+  const sx = 1200;
+  for(let i=0; i<4; i++){
+    const px = sx + i*100;
+    const py = 310 + (i%2)*20;
+    rc.circle(px, py, 40, {stroke:'#333', strokeWidth:2, roughness:1.2});
+    rc.rectangle(px-20, py+25, 40, 60, {stroke:'#333', strokeWidth:2, roughness:1.2});
+    // Arms up
+    rc.line(px-20, py+35, px-40, py-10, {stroke:'#333', strokeWidth:2, roughness:1.5});
+    rc.line(px+20, py+35, px+40, py-10, {stroke:'#333', strokeWidth:2, roughness:1.5});
+  }
+
+  // Faded crowd (far right)
+  for(let i=0; i<6; i++){
+    const px = 1550 + (i%3)*50;
+    const py = 340 + Math.floor(i/3)*60;
+    rc.circle(px, py, 24, {stroke:'rgba(150,150,150,0.4)', strokeWidth:1.5, roughness:1});
+    rc.rectangle(px-12, py+15, 24, 35, {stroke:'rgba(150,150,150,0.4)', strokeWidth:1.5, roughness:1});
+  }
+}
+
+function drawRoughAttribution(canvas) {
+  const rc = rough.canvas(canvas);
+  // Title rounded box
+  rc.rectangle(700, 50, 520, 90, {stroke:'#333', strokeWidth:3, roughness:1.5});
+
+  // Young person (left)
+  rc.circle(400, 470, 50, {stroke:'#333', strokeWidth:2.5, roughness:1.2});
+  rc.rectangle(375, 500, 50, 90, {stroke:'#333', strokeWidth:2.5, roughness:1.2});
+
+  // Old man with chair (right)
+  rc.rectangle(1330, 500, 100, 80, {stroke:'#333', strokeWidth:2, roughness:1.2});
+  rc.circle(1380, 440, 50, {stroke:'#333', strokeWidth:2.5, roughness:1.2});
+  // Cigarette
+  rc.line(1395, 440, 1430, 435, {stroke:'#333', strokeWidth:2, roughness:0.5});
+  // Smoke
+  rc.path('M1430 435 C1435 420 1440 415 1435 400', {stroke:'rgba(150,150,150,0.5)', strokeWidth:1.5, roughness:1.5});
+}
+
+function drawRoughFramework(canvas) {
+  const rc = rough.canvas(canvas);
+  // Connecting lines between cards
+  rc.line(500, 280, 750, 280, {stroke:'#c0392b', strokeWidth:2, roughness:1.5});
+  rc.line(1150, 280, 1400, 280, {stroke:'#c0392b', strokeWidth:2, roughness:1.5});
+
+  // Wald figure at bottom
+  rc.circle(960, 680, 50, {stroke:'#333', strokeWidth:2.5, roughness:1.2});
+  rc.circle(948, 678, 14, {stroke:'#333', strokeWidth:1.5, roughness:0.8});
+  rc.circle(972, 678, 14, {stroke:'#333', strokeWidth:1.5, roughness:0.8});
+  rc.line(955, 678, 965, 678, {stroke:'#333', strokeWidth:1.5});
+  rc.rectangle(932, 710, 56, 100, {stroke:'#333', strokeWidth:2.5, roughness:1.2});
+  rc.rectangle(940, 720, 40, 70, {stroke:'#333', strokeWidth:1.5, roughness:1});
+
+  // Crashed plane (bottom left)
+  rc.ellipse(400, 820, 40, 120, {stroke:'#333', strokeWidth:2, roughness:1.5});
+  rc.line(380, 810, 300, 780, {stroke:'#333', strokeWidth:2, roughness:1.5});
+  rc.line(420, 810, 500, 780, {stroke:'#333', strokeWidth:2, roughness:1.5});
+  rc.path('M395 760 C385 730 392 720 388 700', {stroke:'rgba(150,150,150,0.5)', strokeWidth:2, roughness:1.5});
+}
+
+function drawRoughEnding(canvas) {
+  const rc = rough.canvas(canvas);
+  // Scattered "成功者" and "普通人" boxes
+  const successPos = [[200,200],[1500,180],[600,150],[1300,250]];
+  successPos.forEach(([x,y]) => {
+    rc.rectangle(x-60,y-20,120,40, {stroke:'#c0392b', strokeWidth:2, roughness:1.5, fill:'rgba(192,57,43,0.05)', fillStyle:'solid'});
+  });
+  // Trophy icons
+  rc.path('M240 160 L240 140 L245 130 L255 130 L260 140 L260 160', {stroke:'#c0392b', strokeWidth:1.5, roughness:1});
+}
+
+// ==================== MAIN ANIMATION ====================
+document.getElementById('playBtn').addEventListener('click', function(){
+  this.style.display='none';
+  startAnimation();
+});
+
+function startAnimation(){
+  const audio = document.getElementById('narration');
+  audio.play();
+
+  const PS = new ParticleSystem(document.getElementById('particleCanvas'));
+  const M = gsap.timeline();
+  const $ = s => document.querySelector(s);
+
+  const subOn = t => { M.to('#subBar',{opacity:1,duration:0.3}).set('#subText',{textContent:t}); };
+  const subOff = () => { M.to('#subBar',{opacity:0,duration:0.3}); };
+  const subChange = t => { M.set('#subText',{textContent:t}); };
+  const fadeIn = (sel,d=0.5) => M.to(sel,{opacity:1,duration:d});
+  const fadeOut = (sel,d=0.5) => M.to(sel,{opacity:0,duration:d});
+  const hold = (d=2) => M.to({},{duration:d});
+
+  // Track bullet hole count for progressive drawing
+  let bulletCount = 0;
+  let planeState = 'none'; // none, wings, tail, both
+
+  // ===== SCENE 1: Black intro =====
+  fadeIn('#s1',0.3);
+  M.to('#s1 .intro-text',{opacity:1,duration:1.2,ease:'power2.out'});
+  hold(4);
+  M.to('#s1 .intro-text',{opacity:0,duration:0.8});
+  fadeOut('#s1',0.5);
+
+  // Corners
+  M.to('#cornerTitle',{opacity:1,duration:0.5});
+  M.to('#cornerRight',{opacity:1,duration:0.5},'<');
+
+  // Floating particles
+  M.call(()=>PS.floatingDots(25));
+
+  // ===== SCENE 2: Plane with rough.js =====
+  // Draw plane without holes first
+  M.call(()=>drawRoughPlane($('#roughPlane'), 0, 'none'));
+  fadeIn('#s2',0.5);
+  subOn('军方统计了返航飞机的弹孔分布');
+
+  // Bullet holes appear progressively with particle bursts
+  const holePositions = [
+    [760,350],[680,355],[840,360],[1140,352],[1220,358],
+    [1090,365],[930,320],[985,360],[940,430],[1000,480],
+    [650,350],[1270,352],[925,530],[980,550],[995,300]
+  ];
+
+  for(let i=1; i<=15; i++){
+    const idx = i;
+    M.call(()=>{
+      drawRoughPlane($('#roughPlane'), idx, planeState);
+      const [px,py] = holePositions[idx-1];
+      PS.burst(px, py, 8, '#555', 30);
+    });
+    M.to({},{duration:0.15});
+    if(i===8) subChange('以确定哪些部位需要加固');
+  }
+  hold(0.5);
+
+  // Wing highlight
+  subChange('于是建议加强这些部位的防护');
+  M.call(()=>{ planeState='wings'; drawRoughPlane($('#roughPlane'), 15, 'wings'); });
+  hold(2);
+
+  // Officer
+  subChange('也认同应该加强机翼的保护');
+  fadeIn('#s2officer',0.6);
+  hold(2);
+
+  // Wald + tail highlight
+  subChange('真正需要防护的是机尾而不是机翼');
+  fadeIn('#s2wald',0.6);
+  M.call(()=>{ planeState='both'; drawRoughPlane($('#roughPlane'), 15, 'both'); });
+  hold(3);
+
+  subChange('因为那些机尾中弹的飞机早已坠毁');
+  // Particle burst at tail area
+  M.call(()=>PS.burst(960, 595, 30, '#c0392b', 60));
+  hold(3);
+
+  subChange('而那些沉默的未能返航的数据');
+  hold(2.5);
+  subOff();
+  fadeOut('#s2',0.6);
+
+  // ===== SCENE 5: Conclusion =====
+  M.call(()=>{
+    const rc = rough.canvas($('#roughConclusion'));
+    // Left: clean plane
+    rc.ellipse(480, 350, 50, 180, {stroke:'#333', strokeWidth:2.5, roughness:1.5, fill:'rgba(232,224,208,0.8)', fillStyle:'solid'});
+    rc.line(455,335,360,305,{stroke:'#333',strokeWidth:2,roughness:1.5});
+    rc.line(505,335,600,305,{stroke:'#333',strokeWidth:2,roughness:1.5});
+    // Right: damaged plane
+    rc.ellipse(1440, 320, 100, 360, {stroke:'#333', strokeWidth:2.5, roughness:1.2, fill:'rgba(232,224,208,0.8)', fillStyle:'solid'});
+    rc.line(1390,295,1160,260,{stroke:'#333',strokeWidth:2.5,roughness:1.5});
+    rc.line(1490,295,1720,260,{stroke:'#333',strokeWidth:2.5,roughness:1.5});
+    // Bullet holes on right
+    [[-40,-50],[40,-30],[-20,30],[30,60],[-30,80],[20,100]].forEach(([dx,dy])=>{
+      rc.circle(1440+dx,320+dy,10,{stroke:'#333',fill:'#333',fillStyle:'solid',roughness:0.5});
+    });
+  });
+  fadeIn('#s5',0.5);
+  subOn('后来事实表明该决策是无比正确的');
+  fadeIn('#s5labelL',0.5);
+  M.to('#s5labelR',{opacity:1,duration:0.5},'+=0.3');
+  hold(2);
+  subOff();
+  fadeOut('#s5',0.6);
+
+  // ===== SCENE 6: Concept =====
+  M.call(()=>drawRoughConcept($('#roughConcept')));
+  fadeIn('#s6',0.5);
+  M.to('#s6title',{opacity:1,duration:0.8,scale:1,ease:'back.out(1.5)'});
+  M.call(()=>PS.burst(960,540,40,'#c0392b',120));
+  hold(2.5);
+  fadeOut('#s6',0.6);
+
+  // ===== SCENE 7: Taleb =====
+  M.call(()=>drawRoughTaleb($('#roughTaleb')));
+  fadeIn('#s7',0.5);
+  subOn('塔勒布在《黑天鹅》中说过');
+  M.to('#s7quote',{opacity:1,duration:0.6},'+=1');
+  hold(3);
+  subChange('就像你刷到100个辞职创业');
+  hold(4);
+  subChange('背后9,999个赔光积蓄的失败者一样');
+  hold(4);
+  subOff();
+  fadeOut('#s7',0.6);
+
+  // ===== SCENE 10: 归因谬误 =====
+  M.call(()=>drawRoughAttribution($('#roughAttribution')));
+  fadeIn('#s10',0.5);
+  subOn('人们习惯将幸存归功于可见因素');
+  fadeIn('#s10title',0.5);
+  hold(4);
+  subChange('便断言烟酒无害');
+  fadeIn('#s10text',0.6);
+  hold(5);
+  subOff();
+  fadeOut('#s10',0.6);
+
+  // ===== SCENE 12: 打破困局 =====
+  fadeIn('#s12',0.3);
+  M.to('#s12text',{opacity:1,duration:0.8,ease:'power2.out'});
+  M.call(()=>PS.burst(960,540,50,'#c0392b',150));
+  hold(2);
+  fadeOut('#s12',0.5);
+
+  // ===== SCENE 13: Frameworks =====
+  M.call(()=>drawRoughFramework($('#roughFramework')));
+  fadeIn('#s13',0.5);
+  subOn('寻找沉默证据 概率替代直觉 系统认知框架');
+  M.to('#fw1box',{opacity:1,y:0,duration:0.5,ease:'back.out(1.5)'},'+=0.3');
+  M.to('#fwArrow1',{opacity:1,duration:0.3},'+=0.2');
+  M.to('#fw2box',{opacity:1,y:0,duration:0.5,ease:'back.out(1.5)'},'+=0.2');
+  M.to('#fwArrow2',{opacity:1,duration:0.3},'+=0.2');
+  M.to('#fw3box',{opacity:1,y:0,duration:0.5,ease:'back.out(1.5)'},'+=0.2');
+  hold(5);
+  subOff();
+  fadeOut('#s13',0.6);
+
+  // ===== SCENE 15: Ending =====
+  M.call(()=>drawRoughEnding($('#roughEnding')));
+  fadeIn('#s15',0.5);
+  subOn('真正的智慧在于看见别人看不到的盲区');
+  fadeIn('#s15center',0.8);
+  M.call(()=>PS.burst(960,540,60,'#c0392b',200));
+  hold(5);
+  subOff();
+  fadeOut('#s15',0.6);
+
+  // ===== SCENE 17: Credits =====
+  M.to('#cornerTitle',{opacity:0,duration:0.5});
+  M.to('#cornerRight',{opacity:0,duration:0.5},'<');
+  fadeIn('#s17',0.5);
+  M.to('#s17text',{opacity:1,duration:1});
+  hold(3);
+  fadeOut('#s17',1);
+
+  // Progress
+  M.eventCallback('onUpdate',()=>{
+    $('#prog').style.width=(M.progress()*100)+'%';
+  });
+  M.eventCallback('onComplete',()=>{
+    audio.pause();
+    PS.clear();
+  });
+
+  // Sync audio
+  setInterval(()=>{
+    if(!audio.paused && Math.abs(M.time()-audio.currentTime)>0.5){
+      M.time(audio.currentTime);
+    }
+  },500);
+}
+</script>
+</body>
+</html>
