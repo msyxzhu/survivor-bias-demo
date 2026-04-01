@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920, height=1080">
+<title>薛定谔的猫 - Schrödinger's Cat</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;700;900&family=ZCOOL+KuaiLe&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+body{width:1920px;height:1080px;overflow:hidden;background:#0a0a1a;font-family:'Noto Sans SC',sans-serif;}
+canvas{position:absolute;top:0;left:0;}
+#playBtn{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);z-index:2000;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-direction:column;gap:20px;}
+.play-circle{width:120px;height:120px;border:3px solid rgba(255,255,255,0.8);border-radius:50%;display:flex;align-items:center;justify-content:center;transition:transform 0.3s;}
+#playBtn:hover .play-circle{transform:scale(1.1);}
+.play-circle::after{content:'';width:0;height:0;border-style:solid;border-width:25px 0 25px 45px;border-color:transparent transparent transparent #fff;margin-left:8px;}
+.play-label{font-size:24px;color:rgba(255,255,255,0.5);letter-spacing:8px;font-family:'ZCOOL KuaiLe';}
+</style>
+</head>
+<body>
+<div id="playBtn">
+  <div class="play-circle"></div>
+  <div class="play-label">薛定谔的猫</div>
+</div>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/roughjs@4.6.6/bundled/rough.js"></script>
+<script>
+document.getElementById('playBtn').addEventListener('click',function(){this.style.display='none';start();});
+
+function start(){
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+const rc=rough.canvas(canvas);
+
+// Particle system
+const particles=[];
+function addParticle(x,y,color,count=15,spread=60){
+  for(let i=0;i<count;i++){
+    const a=(Math.PI*2/count)*i+Math.random()*0.5;
+    particles.push({x,y,vx:Math.cos(a)*(1+Math.random()*3)*spread/60,vy:Math.sin(a)*(1+Math.random()*3)*spread/60,
+      size:1+Math.random()*3,color,alpha:1,decay:0.01+Math.random()*0.02});
+  }
+}
+function updateParticles(){
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vy+=0.02;p.alpha-=p.decay;
+    if(p.alpha<=0){particles.splice(i,1);continue;}
+    ctx.save();ctx.globalAlpha=p.alpha;ctx.fillStyle=p.color;
+    ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill();ctx.restore();
+  }
+}
+
+// Quantum wave particles (floating)
+const qParticles=[];
+for(let i=0;i<50;i++){
+  qParticles.push({x:Math.random()*1920,y:Math.random()*1080,
+    vx:(Math.random()-0.5)*0.5,vy:(Math.random()-0.5)*0.5,
+    size:1+Math.random()*2,phase:Math.random()*Math.PI*2});
+}
+function drawQuantumBG(t){
+  ctx.save();
+  for(const p of qParticles){
+    p.x+=p.vx;p.y+=p.vy;
+    if(p.x<0)p.x=1920;if(p.x>1920)p.x=0;if(p.y<0)p.y=1080;if(p.y>1080)p.y=0;
+    const a=0.1+0.1*Math.sin(t*0.001+p.phase);
+    ctx.globalAlpha=a;ctx.fillStyle='#7c4dff';
+    ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ============ SCENE SYSTEM ============
+let currentScene='';
+const sceneFns={};
+let sceneAlpha=0;
+let subtitleText='';
+let subtitleAlpha=0;
+let progressVal=0;
+
+function drawSubtitle(){
+  if(subtitleAlpha<=0)return;
+  ctx.save();ctx.globalAlpha=subtitleAlpha;
+  ctx.fillStyle='rgba(0,0,0,0.75)';
+  ctx.fillRect(0,1000,1920,80);
+  ctx.fillStyle='#fff';ctx.font='34px "Noto Sans SC"';ctx.textAlign='center';
+  ctx.fillText(subtitleText,960,1048);
+  ctx.restore();
+}
+
+function drawProgress(){
+  ctx.fillStyle='#7c4dff';ctx.fillRect(0,0,1920*progressVal,3);
+}
+
+// Draw cat (rough.js style)
+function drawCat(x,y,alive=true,alpha=1){
+  ctx.save();ctx.globalAlpha=alpha;
+  // Body
+  rc.ellipse(x,y+20,120,80,{stroke:alive?'#fff':'#666',strokeWidth:2,roughness:1.5});
+  // Head
+  rc.circle(x,y-40,50,{stroke:alive?'#fff':'#666',strokeWidth:2,roughness:1.2});
+  // Ears
+  rc.line(x-20,y-60,x-30,y-85,{stroke:alive?'#fff':'#666',strokeWidth:2,roughness:1.5});
+  rc.line(x-30,y-85,x-10,y-65,{stroke:alive?'#fff':'#666',strokeWidth:2,roughness:1.5});
+  rc.line(x+20,y-60,x+30,y-85,{stroke:alive?'#fff':'#666',strokeWidth:2,roughness:1.5});
+  rc.line(x+30,y-85,x+10,y-65,{stroke:alive?'#fff':'#666',strokeWidth:2,roughness:1.5});
+  // Eyes
+  if(alive){
+    rc.circle(x-10,y-42,5,{stroke:'#7c4dff',strokeWidth:1.5,fill:'#7c4dff',fillStyle:'solid',roughness:0.5});
+    rc.circle(x+10,y-42,5,{stroke:'#7c4dff',strokeWidth:1.5,fill:'#7c4dff',fillStyle:'solid',roughness:0.5});
+    // Smile
+    rc.arc(x,y-30,20,20,0.2,Math.PI-0.2,false,{stroke:'#fff',strokeWidth:1.5,roughness:1});
+  }else{
+    rc.line(x-15,y-47,x-5,y-37,{stroke:'#666',strokeWidth:2,roughness:0.5});
+    rc.line(x-5,y-47,x-15,y-37,{stroke:'#666',strokeWidth:2,roughness:0.5});
+    rc.line(x+5,y-47,x+15,y-37,{stroke:'#666',strokeWidth:2,roughness:0.5});
+    rc.line(x+15,y-47,x+5,y-37,{stroke:'#666',strokeWidth:2,roughness:0.5});
+  }
+  // Tail
+  rc.path(`M${x+55} ${y+10} C${x+80} ${y-10} ${x+90} ${y-30} ${x+75} ${y-40}`,{stroke:alive?'#fff':'#666',strokeWidth:2,roughness:1.5});
+  // Whiskers
+  rc.line(x-25,y-35,x-50,y-40,{stroke:alive?'#fff':'#666',strokeWidth:1,roughness:1});
+  rc.line(x-25,y-30,x-50,y-30,{stroke:alive?'#fff':'#666',strokeWidth:1,roughness:1});
+  rc.line(x+25,y-35,x+50,y-40,{stroke:alive?'#fff':'#666',strokeWidth:1,roughness:1});
+  rc.line(x+25,y-30,x+50,y-30,{stroke:alive?'#fff':'#666',strokeWidth:1,roughness:1});
+  ctx.restore();
+}
+
+// Draw box
+function drawBox(x,y,w=300,h=200,open=false,alpha=1){
+  ctx.save();ctx.globalAlpha=alpha;
+  rc.rectangle(x-w/2,y-h/2,w,h,{stroke:'#888',strokeWidth:2.5,roughness:1.5,fill:'rgba(30,30,50,0.8)',fillStyle:'solid'});
+  if(!open){
+    // Lid
+    rc.line(x-w/2-10,y-h/2,x+w/2+10,y-h/2,{stroke:'#aaa',strokeWidth:3,roughness:1});
+    // Question mark
+    ctx.font='bold 80px "ZCOOL KuaiLe"';ctx.fillStyle='rgba(124,77,255,0.5)';ctx.textAlign='center';
+    ctx.fillText('?',x,y+25);
+  }else{
+    // Open lid (tilted)
+    rc.line(x-w/2,y-h/2,x-w/2-30,y-h/2-60,{stroke:'#aaa',strokeWidth:2.5,roughness:1.5});
+    rc.line(x-w/2-30,y-h/2-60,x+w/2+30,y-h/2-60,{stroke:'#aaa',strokeWidth:2.5,roughness:1.5});
+    rc.line(x+w/2+30,y-h/2-60,x+w/2,y-h/2,{stroke:'#aaa',strokeWidth:2.5,roughness:1.5});
+  }
+  // Radioactive symbol
+  ctx.font='28px sans-serif';ctx.fillStyle='rgba(255,200,0,0.6)';ctx.textAlign='center';
+  ctx.fillText('☢',x+w/2-30,y+h/2-15);
+  ctx.restore();
+}
+
+// Draw wave function (superposition visual)
+function drawWave(x,y,w,h,t,alpha=1){
+  ctx.save();ctx.globalAlpha=alpha;
+  ctx.strokeStyle='#7c4dff';ctx.lineWidth=2;
+  ctx.beginPath();
+  for(let i=0;i<=w;i+=2){
+    const py=y+Math.sin((i/w)*Math.PI*4+t*0.003)*h*0.4
+              +Math.sin((i/w)*Math.PI*7+t*0.005)*h*0.2;
+    if(i===0)ctx.moveTo(x+i,py);else ctx.lineTo(x+i,py);
+  }
+  ctx.stroke();
+  // Glow
+  ctx.strokeStyle='rgba(124,77,255,0.3)';ctx.lineWidth=6;
+  ctx.beginPath();
+  for(let i=0;i<=w;i+=2){
+    const py=y+Math.sin((i/w)*Math.PI*4+t*0.003)*h*0.4
+              +Math.sin((i/w)*Math.PI*7+t*0.005)*h*0.2;
+    if(i===0)ctx.moveTo(x+i,py);else ctx.lineTo(x+i,py);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ============ ANIMATION TIMELINE ============
+const M=gsap.timeline({delay:0.3});
+const state={scene:'none',alpha:0,sub:'',subA:0,prog:0,
+  showCatAlive:0,showCatDead:0,showBox:0,boxOpen:false,
+  showWave:0,waveCollapse:0,
+  titleA:0,s2A:0,s3A:0,s4A:0,s5A:0,endA:0,
+  text1A:0,text2A:0,text3A:0,text4A:0};
+
+function sub(t){M.to(state,{subA:1,duration:0.3}).set(state,{sub:t});}
+function subH(){M.to(state,{subA:0,duration:0.3});}
+function subS(t){M.set(state,{sub:t});}
+function hold(d=2){M.to({},{duration:d});}
+
+// S1: Title
+M.to(state,{titleA:1,duration:0.8});
+sub('1935年，物理学家薛定谔提出了一个疯狂的思想实验');
+hold(4);
+M.to(state,{titleA:0,duration:0.5});subH();
+
+// S2: Box setup
+M.to(state,{s2A:1,duration:0.5});
+sub('把一只猫放进一个密封的盒子里');
+M.to(state,{showBox:1,duration:0.5});
+hold(2);
+subS('盒子里有一个放射性原子和毒药装置');
+hold(3);
+subS('原子有50%的概率衰变，触发毒药');
+hold(3);subH();
+M.to(state,{s2A:0,duration:0.5});
+
+// S3: Superposition
+M.to(state,{s3A:1,duration:0.5});
+sub('在你打开盒子之前');
+M.to(state,{showBox:1,showWave:1,duration:0.5});
+hold(2);
+subS('按照量子力学，猫同时处于「活」和「死」的叠加态');
+M.to(state,{showCatAlive:0.5,showCatDead:0.5,duration:1});
+hold(3);
+subS('不是活或死，而是又活又死');
+M.to(state,{text1A:1,duration:0.5});
+hold(3);subH();
+M.to(state,{s3A:0,showWave:0,showCatAlive:0,showCatDead:0,text1A:0,duration:0.5});
+
+// S4: Observation collapses
+M.to(state,{s4A:1,duration:0.5});
+sub('当你打开盒子的那一刻');
+M.to(state,{showBox:1,duration:0.3});
+hold(2);
+subS('波函数坍缩 —— 猫的状态被确定');
+M.set(state,{boxOpen:true});
+M.to(state,{waveCollapse:1,duration:0.8});
+M.to(state,{showCatAlive:1,showCatDead:0,duration:0.5});
+hold(2);
+subS('观测行为本身改变了量子系统的状态');
+M.to(state,{text2A:1,duration:0.5});
+hold(3);subH();
+M.to(state,{s4A:0,text2A:0,showCatAlive:0,showBox:0,duration:0.5});
+M.set(state,{boxOpen:false,waveCollapse:0});
+
+// S5: Why it matters
+M.to(state,{s5A:1,duration:0.5});
+sub('薛定谔的本意是讽刺量子力学的荒谬');
+M.to(state,{text3A:1,duration:0.5});
+hold(3);
+subS('但这个悖论揭示了量子世界最神奇的特性');
+M.to(state,{text4A:1,duration:0.5});
+hold(3);
+subS('微观世界的规则，和我们的日常经验完全不同');
+hold(3);subH();
+M.to(state,{s5A:0,text3A:0,text4A:0,duration:0.5});
+
+// End
+M.to(state,{endA:1,duration:0.8});
+hold(4);
+M.to(state,{endA:0,duration:1});
+
+M.eventCallback('onUpdate',()=>{state.prog=M.progress();});
+
+// ============ RENDER LOOP ============
+let t=0;
+function render(){
+  t++;ctx.clearRect(0,0,1920,1080);
+  ctx.fillStyle='#0a0a1a';ctx.fillRect(0,0,1920,1080);
+  drawQuantumBG(t);
+
+  // Title
+  if(state.titleA>0.01){
+    ctx.save();ctx.globalAlpha=state.titleA;
+    ctx.font='bold 96px "ZCOOL KuaiLe"';ctx.fillStyle='#fff';ctx.textAlign='center';
+    ctx.fillText('薛定谔的猫',960,380);
+    ctx.font='28px "Noto Sans SC"';ctx.fillStyle='#888';
+    ctx.fillText("Schrödinger's Cat",960,440);
+    ctx.font='40px "ZCOOL KuaiLe"';ctx.fillStyle='#7c4dff';
+    ctx.fillText('🐱 又活又死的量子谜题',960,650);
+    ctx.restore();
+  }
+
+  // S2: Box
+  if(state.s2A>0.01){
+    ctx.save();ctx.globalAlpha=state.s2A;
+    drawBox(960,450,350,250,false,state.showBox);
+    ctx.font='28px "ZCOOL KuaiLe"';ctx.fillStyle='rgba(255,200,0,0.7)';ctx.textAlign='center';
+    ctx.fillText('☢ 放射性原子 + 毒药',960,650);
+    ctx.restore();
+  }
+
+  // S3: Superposition
+  if(state.s3A>0.01){
+    ctx.save();ctx.globalAlpha=state.s3A;
+    drawBox(960,400,350,250,false,state.showBox);
+    // Alive cat (left, semi-transparent)
+    if(state.showCatAlive>0.01) drawCat(550,450,true,state.showCatAlive*state.s3A);
+    // Dead cat (right, semi-transparent)
+    if(state.showCatDead>0.01) drawCat(1370,450,false,state.showCatDead*state.s3A);
+    // Wave function
+    if(state.showWave>0.01) drawWave(360,300,1200,100,t,state.showWave*state.s3A);
+    // Labels
+    if(state.showCatAlive>0.01){
+      ctx.font='32px "ZCOOL KuaiLe"';ctx.fillStyle='#27ae60';ctx.textAlign='center';
+      ctx.globalAlpha=state.showCatAlive*state.s3A;
+      ctx.fillText('😺 活',550,560);
+    }
+    if(state.showCatDead>0.01){
+      ctx.font='32px "ZCOOL KuaiLe"';ctx.fillStyle='#e74c3c';ctx.textAlign='center';
+      ctx.globalAlpha=state.showCatDead*state.s3A;
+      ctx.fillText('😵 死',1370,560);
+    }
+    // Text
+    if(state.text1A>0.01){
+      ctx.globalAlpha=state.text1A*state.s3A;
+      ctx.font='40px "ZCOOL KuaiLe"';ctx.fillStyle='#7c4dff';ctx.textAlign='center';
+      ctx.fillText('|猫⟩ = |活⟩ + |死⟩',960,750);
+      ctx.font='24px "Noto Sans SC"';ctx.fillStyle='#888';
+      ctx.fillText('量子叠加态',960,800);
+    }
+    ctx.restore();
+  }
+
+  // S4: Observation
+  if(state.s4A>0.01){
+    ctx.save();ctx.globalAlpha=state.s4A;
+    drawBox(960,400,350,250,state.boxOpen,state.showBox);
+    if(state.showCatAlive>0.01) drawCat(960,380,true,state.showCatAlive*state.s4A);
+    // Wave collapse visual
+    if(state.waveCollapse>0.01 && state.waveCollapse<0.99){
+      const w=1200*(1-state.waveCollapse);
+      drawWave(960-w/2,250,w,80*(1-state.waveCollapse),t,state.s4A*(1-state.waveCollapse));
+    }
+    if(state.text2A>0.01){
+      ctx.globalAlpha=state.text2A*state.s4A;
+      ctx.font='36px "ZCOOL KuaiLe"';ctx.fillStyle='#f5c518';ctx.textAlign='center';
+      ctx.fillText('观测 → 波函数坍缩 → 状态确定',960,720);
+    }
+    ctx.restore();
+  }
+
+  // S5: Why it matters
+  if(state.s5A>0.01){
+    ctx.save();ctx.globalAlpha=state.s5A;
+    ctx.font='40px "ZCOOL KuaiLe"';ctx.fillStyle='#fff';ctx.textAlign='center';
+    if(state.text3A>0.01){
+      ctx.globalAlpha=state.text3A*state.s5A;
+      ctx.fillText('薛定谔的本意：',960,300);
+      ctx.font='32px "Noto Sans SC"';ctx.fillStyle='#e94560';
+      ctx.fillText('"如果量子力学是对的，那一只猫可以同时活着和死去？"',960,360);
+      ctx.fillStyle='#888';ctx.font='24px "Noto Sans SC"';
+      ctx.fillText('—— 这显然荒谬！',960,410);
+    }
+    if(state.text4A>0.01){
+      ctx.globalAlpha=state.text4A*state.s5A;
+      ctx.font='36px "ZCOOL KuaiLe"';ctx.fillStyle='#7c4dff';
+      ctx.fillText('但量子世界就是这么奇妙：',960,550);
+      ctx.font='28px "Noto Sans SC"';ctx.fillStyle='#fff';
+      ctx.fillText('叠加态 · 波函数坍缩 · 观测者效应',960,610);
+      ctx.fillStyle='#888';ctx.font='22px "Noto Sans SC"';
+      ctx.fillText('这些概念已被无数实验证实',960,660);
+    }
+    ctx.restore();
+  }
+
+  // End
+  if(state.endA>0.01){
+    ctx.save();ctx.globalAlpha=state.endA;
+    ctx.font='64px "ZCOOL KuaiLe"';ctx.fillStyle='#fff';ctx.textAlign='center';
+    ctx.fillText('在你观测之前',960,380);
+    ctx.fillText('一切皆有可能',960,470);
+    ctx.font='28px "Noto Sans SC"';ctx.fillStyle='#888';
+    ctx.fillText('—— 薛定谔的猫 · 量子力学思想实验',960,560);
+    ctx.restore();
+  }
+
+  updateParticles();
+  // Subtitle
+  subtitleText=state.sub;subtitleAlpha=state.subA;drawSubtitle();
+  progressVal=state.prog;drawProgress();
+  requestAnimationFrame(render);
+}
+render();
+}
+</script>
+</body>
+</html>

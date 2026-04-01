@@ -238,11 +238,11 @@ body{
     <p>用代码讲述知识 · HTML + JS 驱动的动画视频</p>
     <div class="stats">
       <div class="stat">
-        <div class="stat-num" id="videoCount">2</div>
+        <div class="stat-num" id="videoCount">5</div>
         <div class="stat-label">选题</div>
       </div>
       <div class="stat">
-        <div class="stat-num" id="versionCount">4</div>
+        <div class="stat-num" id="versionCount">7</div>
         <div class="stat-label">版本</div>
       </div>
       <div class="stat">
@@ -302,7 +302,72 @@ body{
       </div>
     </div>
 
-    <!-- Card 3: Coming Soon -->
+    <!-- Card 3: 囚徒困境 -->
+    <div class="card" onclick="window.open('prisoners-dilemma.html','_blank')">
+      <div class="card-preview-wrap">
+        <div class="card-preview-placeholder">🎮</div>
+        <div class="card-play"></div>
+      </div>
+      <div class="card-body">
+        <span class="card-tag" style="background:rgba(233,69,96,0.15);color:#e94560;">博弈论</span>
+        <div class="card-title">囚徒困境</div>
+        <div class="card-desc">
+          两个囚犯、两间审讯室、一个不可能的选择。理性的博弈，为何导致最坏的结果？
+        </div>
+        <div class="card-meta">
+          <span>⏱ ~1.5分钟</span>
+          <span>🎨 2D卡通风</span>
+          <span>📐 PixiJS渲染</span>
+        </div>
+        <div class="versions">
+          <a href="prisoners-dilemma.html" class="version-badge active" onclick="event.stopPropagation()">🎮 2D卡通版 (PixiJS)</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 4: 薛定谔的猫 -->
+    <div class="card" onclick="window.open('schrodinger-cat.html','_blank')">
+      <div class="card-preview-wrap">
+        <div class="card-preview-placeholder">🐱</div>
+        <div class="card-play"></div>
+      </div>
+      <div class="card-body">
+        <span class="card-tag" style="background:rgba(124,77,255,0.15);color:#7c4dff;">量子物理</span>
+        <div class="card-title">薛定谔的猫</div>
+        <div class="card-desc">
+          一只同时活着和死去的猫？量子力学最著名的思想实验，揭示微观世界的诡异规则。
+        </div>
+        <div class="card-meta">
+          <span>⏱ ~1.5分钟</span>
+          <span>🎨 手绘风+粒子</span>
+          <span>📐 rough.js+Canvas</span>
+        </div>
+        <div class="versions">
+          <a href="schrodinger-cat.html" class="version-badge active" onclick="event.stopPropagation()">✨ 量子风格 (rough.js+Canvas)</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 5: 勾股定理 (Manim) -->
+    <div class="card" style="opacity:0.6;cursor:default;">
+      <div class="card-preview-wrap">
+        <div class="card-preview-placeholder">📐</div>
+      </div>
+      <div class="card-body">
+        <span class="card-tag tag-math">数学</span>
+        <div class="card-title">勾股定理</div>
+        <div class="card-desc">
+          a² + b² = c²，用 Manim (3Blue1Brown风格) 渲染中。正方形面积拼接证明。
+        </div>
+        <div class="card-meta">
+          <span>🔄 渲染中</span>
+          <span>🎨 3B1B风格</span>
+          <span>📐 Manim</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 6: Coming Soon -->
     <div class="card" style="opacity:0.4;cursor:default;" onclick="">
       <div class="card-preview-wrap">
         <div class="card-preview-placeholder">🧠</div>
@@ -311,7 +376,7 @@ body{
         <span class="card-tag" style="background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.3);">即将推出</span>
         <div class="card-title" style="color:rgba(255,255,255,0.3);">更多选题开发中...</div>
         <div class="card-desc">
-          达克效应 · 薛定谔的猫 · 蝴蝶效应 · 电车难题 · 勾股定理 · 囚徒困境...
+          达克效应 · 蝴蝶效应 · 电车难题 · 纳什均衡 · 生日悖论...
         </div>
       </div>
     </div>

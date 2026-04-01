@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1920, height=1080">
+<title>囚徒困境 - Prisoner's Dilemma</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;700;900&family=ZCOOL+KuaiLe&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+body{width:1920px;height:1080px;overflow:hidden;background:#0d1117;font-family:'Noto Sans SC',sans-serif;}
+#playBtn{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);z-index:2000;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-direction:column;gap:20px;}
+.play-circle{width:120px;height:120px;border:3px solid rgba(255,255,255,0.8);border-radius:50%;display:flex;align-items:center;justify-content:center;transition:transform 0.3s;}
+#playBtn:hover .play-circle{transform:scale(1.1);}
+.play-circle::after{content:'';width:0;height:0;border-style:solid;border-width:25px 0 25px 45px;border-color:transparent transparent transparent #fff;margin-left:8px;}
+.play-label{font-size:24px;color:rgba(255,255,255,0.5);letter-spacing:8px;font-family:'ZCOOL KuaiLe';}
+</style>
+</head>
+<body>
+<div id="playBtn">
+  <div class="play-circle"></div>
+  <div class="play-label">囚徒困境</div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.3.3/pixi.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<script>
+document.getElementById('playBtn').addEventListener('click',async function(){this.style.display='none';await init();});
+
+async function init(){
+const app=new PIXI.Application({width:1920,height:1080,backgroundColor:0x0d1117,antialias:true});
+document.body.appendChild(app.view);
+
+const C={bg:0x0d1117,accent:0xe94560,blue:0x3498db,green:0x27ae60,gold:0xf5c518,white:0xffffff,gray:0x888888,dark:0x333333,cell1:0x1a2332,cell2:0x162233,red:0xe74c3c,orange:0xf39c12};
+
+function T(s,sz=32,c=C.white,f='ZCOOL KuaiLe'){
+  return new PIXI.Text(s,{fontFamily:f,fontSize:sz,fill:c,align:'center',wordWrap:true,wordWrapWidth:1600,lineHeight:sz*1.5});
+}
+function R(w,h,c,r=16,a=1){const g=new PIXI.Graphics();g.beginFill(c,a);g.drawRoundedRect(-w/2,-h/2,w,h,r);g.endFill();return g;}
+function Circ(r,c,a=1){const g=new PIXI.Graphics();g.beginFill(c,a);g.drawCircle(0,0,r);g.endFill();return g;}
+function sparkle(con,x,y,n=20,c=C.gold){
+  for(let i=0;i<n;i++){const s=Circ(2+Math.random()*3,c);s.x=x;s.y=y;con.addChild(s);
+    const a=(Math.PI*2/n)*i,d=40+Math.random()*80;
+    gsap.to(s,{x:x+Math.cos(a)*d,y:y+Math.sin(a)*d-20,alpha:0,duration:0.5+Math.random()*0.3,ease:'power2.out',onComplete:()=>con.removeChild(s)});
+  }
+}
+
+const scenes={};
+function mkScene(n){const c=new PIXI.Container();c.alpha=0;app.stage.addChild(c);scenes[n]=c;return c;}
+
+// Subtitle
+const subBar=new PIXI.Container();subBar.alpha=0;app.stage.addChild(subBar);
+const subBg=R(1920,80,0x000000,0,0.75);subBg.y=1040;subBar.addChild(subBg);
+const subText=T('',34,C.white,'Noto Sans SC');subText.anchor.set(0.5);subText.x=960;subText.y=1040;subBar.addChild(subText);
+
+// Progress
+const prog=new PIXI.Graphics();prog.beginFill(C.accent);prog.drawRect(0,0,1,3);prog.endFill();app.stage.addChild(prog);
+
+// ============ PRISONER CHARACTER ============
+function makePrisoner(color=C.blue,name='A'){
+  const c=new PIXI.Container();
+  // Body (prison uniform)
+  const body=new PIXI.Graphics();
+  body.beginFill(color);body.drawRoundedRect(-30,0,60,90,8);body.endFill();
+  // Stripes
+  body.lineStyle(3,0xffffff,0.2);
+  for(let i=15;i<85;i+=18){body.moveTo(-30,i);body.lineTo(30,i);}
+  c.addChild(body);
+  // Head
+  c.addChild(Object.assign(Circ(25,0xF4C2A1),{y:-25}));
+  // Eyes
+  c.addChild(Object.assign(Circ(3,C.dark),{x:-8,y:-28}));
+  c.addChild(Object.assign(Circ(3,C.dark),{x:8,y:-28}));
+  // Worried mouth
+  const mouth=new PIXI.Graphics();mouth.lineStyle(2.5,C.dark);mouth.arc(0,-12,8,0.3,Math.PI-0.3);c.addChild(mouth);
+  // Hair
+  const hair=new PIXI.Graphics();hair.beginFill(0x3E2723);hair.arc(0,-25,25,-Math.PI,-0.05);hair.endFill();c.addChild(hair);
+  // Label
+  const label=T(name,22,color,'ZCOOL KuaiLe');label.anchor.set(0.5);label.y=-60;c.addChild(label);
+  // Legs
+  const legs=new PIXI.Graphics();legs.lineStyle(5,color);legs.moveTo(-10,90);legs.lineTo(-10,130);legs.moveTo(10,90);legs.lineTo(10,130);c.addChild(legs);
+  c._body=body;
+  return c;
+}
+
+// ============ INTERROGATION ROOM ============
+function makeRoom(x,y,w=500,h=400){
+  const c=new PIXI.Container();c.x=x;c.y=y;
+  // Wall
+  const wall=R(w,h,0x1a1a2e,12);c.addChild(wall);
+  // Light (cone from top)
+  const light=new PIXI.Graphics();light.beginFill(C.gold,0.03);
+  light.moveTo(0,-h/2);light.lineTo(-80,h/2-60);light.lineTo(80,h/2-60);light.closePath();light.endFill();
+  c.addChild(light);
+  // Table
+  const table=R(160,20,0x4a3728,4);table.y=50;c.addChild(table);
+  // Lamp
+  const lamp=new PIXI.Graphics();lamp.beginFill(C.gold,0.8);lamp.drawCircle(0,-h/2+30,8);lamp.endFill();c.addChild(lamp);
+  // Border
+  const border=new PIXI.Graphics();border.lineStyle(2,0x333333);border.drawRoundedRect(-w/2,-h/2,w,h,12);c.addChild(border);
+  return c;
+}
+
+// ============ PAYOFF MATRIX ============
+function makeMatrix(x,y){
+  const c=new PIXI.Container();c.x=x;c.y=y;
+  const cellW=220,cellH=110,gap=4;
+  const totalW=cellW*2+gap,totalH=cellH*2+gap;
+
+  // Headers
+  const hB=T('囚犯 B →',24,C.accent,'ZCOOL KuaiLe');hB.anchor.set(0.5);hB.y=-cellH-40;c.addChild(hB);
+  const hA=T('囚\n犯\nA\n↓',20,C.blue,'ZCOOL KuaiLe');hA.anchor.set(1,0.5);hA.x=-cellW-20;c.addChild(hA);
+
+  // Column headers
+  const colSilent=T('沉默',28,C.green,'ZCOOL KuaiLe');colSilent.anchor.set(0.5);colSilent.x=-cellW/2;colSilent.y=-cellH-5;c.addChild(colSilent);
+  const colBetray=T('背叛',28,C.red,'ZCOOL KuaiLe');colBetray.anchor.set(0.5);colBetray.x=cellW/2+gap;colBetray.y=-cellH-5;c.addChild(colBetray);
+
+  // Row headers
+  const rowSilent=T('沉默',28,C.green,'ZCOOL KuaiLe');rowSilent.anchor.set(1,0.5);rowSilent.x=-cellW-5;rowSilent.y=-cellH/2;c.addChild(rowSilent);
+  const rowBetray=T('背叛',28,C.red,'ZCOOL KuaiLe');rowBetray.anchor.set(1,0.5);rowBetray.x=-cellW-5;rowBetray.y=cellH/2+gap;c.addChild(rowBetray);
+
+  // Cells
+  const cells=[];
+  const data=[
+    {r:0,co:0, a:'各判1年',  color:C.green, val:[-1,-1]},
+    {r:0,co:1, a:'A判10年\nB释放', color:C.orange, val:[-10,0]},
+    {r:1,co:0, a:'A释放\nB判10年', color:C.orange, val:[0,-10]},
+    {r:1,co:1, a:'各判5年',  color:C.accent, val:[-5,-5]},
+  ];
+
+  data.forEach(d=>{
+    const cx=d.co*(cellW+gap)-cellW/2+cellW/2;
+    const cy=d.r*(cellH+gap)-cellH/2+cellH/2;
+    const bg=R(cellW,cellH, d.r===1&&d.co===1 ? 0x2a1520 : C.cell1, 8);
+    bg.x=cx;bg.y=cy;bg.alpha=0;c.addChild(bg);
+    const txt=T(d.a,22,d.color,'Noto Sans SC');txt.anchor.set(0.5);txt.x=cx;txt.y=cy;txt.alpha=0;c.addChild(txt);
+    cells.push({bg,txt,data:d});
+  });
+
+  c._cells=cells;
+  c._headers=[hB,hA,colSilent,colBetray,rowSilent,rowBetray];
+  return c;
+}
+
+// ============ BUILD SCENES ============
+
+// --- S1: Title ---
+const s1=mkScene('title');
+s1.addChild(R(1920,1080,C.bg,0));
+// Bars pattern
+for(let i=0;i<8;i++){
+  const bar=new PIXI.Graphics();bar.beginFill(0xffffff,0.04);bar.drawRect(0,0,8,1080);bar.endFill();
+  bar.x=660+i*80;s1.addChild(bar);
+}
+const t1=T('囚徒困境',96,C.white,'ZCOOL KuaiLe');t1.anchor.set(0.5);t1.x=960;t1.y=350;t1.alpha=0;s1.addChild(t1);
+const t1en=T("Prisoner's Dilemma",28,C.gray,'Noto Sans SC');t1en.anchor.set(0.5);t1en.x=960;t1en.y=440;t1en.alpha=0;s1.addChild(t1en);
+const t1sub=T('理性的选择，为何导致最坏的结果？',40,C.accent,'ZCOOL KuaiLe');t1sub.anchor.set(0.5);t1sub.x=960;t1sub.y=650;t1sub.alpha=0;s1.addChild(t1sub);
+
+// --- S2: Setup ---
+const s2=mkScene('setup');
+s2.addChild(R(1920,1080,C.bg,0));
+const roomA=makeRoom(480,400);roomA.alpha=0;s2.addChild(roomA);
+const roomB=makeRoom(1440,400);roomB.alpha=0;s2.addChild(roomB);
+const prisonerA=makePrisoner(C.blue,'囚犯 A');prisonerA.x=480;prisonerA.y=420;prisonerA.alpha=0;s2.addChild(prisonerA);
+const prisonerB=makePrisoner(C.accent,'囚犯 B');prisonerB.x=1440;prisonerB.y=420;prisonerB.alpha=0;s2.addChild(prisonerB);
+
+// Wall between rooms
+const wall=new PIXI.Graphics();wall.beginFill(0x333333);wall.drawRect(-4,-200,8,400);wall.endFill();
+wall.x=960;wall.y=400;wall.alpha=0;s2.addChild(wall);
+const wallLabel=T('无法沟通',20,C.gray,'Noto Sans SC');wallLabel.anchor.set(0.5);wallLabel.x=960;wallLabel.y=620;wallLabel.alpha=0;s2.addChild(wallLabel);
+
+// Thought bubbles
+const thinkA=new PIXI.Container();thinkA.alpha=0;thinkA.x=350;thinkA.y=280;s2.addChild(thinkA);
+thinkA.addChild(R(200,60,0x000000,20,0.7));
+const thinkAT=T('沉默？背叛？',20,C.white,'ZCOOL KuaiLe');thinkAT.anchor.set(0.5);thinkA.addChild(thinkAT);
+
+const thinkB=new PIXI.Container();thinkB.alpha=0;thinkB.x=1570;thinkB.y=280;s2.addChild(thinkB);
+thinkB.addChild(R(200,60,0x000000,20,0.7));
+const thinkBT=T('沉默？背叛？',20,C.white,'ZCOOL KuaiLe');thinkBT.anchor.set(0.5);thinkB.addChild(thinkBT);
+
+// Rules text
+const rules=T('规则：\n• 两人分别被审讯，无法沟通\n• 都沉默 → 各判1年\n• 都背叛 → 各判5年\n• 一人背叛一人沉默 → 背叛者释放，沉默者判10年',26,C.white,'Noto Sans SC');
+rules.x=610;rules.y=680;rules.alpha=0;s2.addChild(rules);
+
+// --- S3: Matrix ---
+const s3=mkScene('matrix');
+s3.addChild(R(1920,1080,C.bg,0));
+const matTitle=T('收益矩阵',56,C.white,'ZCOOL KuaiLe');matTitle.anchor.set(0.5);matTitle.x=960;matTitle.y=60;matTitle.alpha=0;s3.addChild(matTitle);
+const matrix=makeMatrix(960,380);matrix.alpha=0;s3.addChild(matrix);
+
+// --- S4: Analysis ---
+const s4=mkScene('analysis');
+s4.addChild(R(1920,1080,C.bg,0));
+const anaTitle=T('理性分析',56,C.white,'ZCOOL KuaiLe');anaTitle.anchor.set(0.5);anaTitle.x=960;anaTitle.y=60;anaTitle.alpha=0;s4.addChild(anaTitle);
+
+// A's perspective
+const anaA=T('囚犯 A 的想法：',32,C.blue,'ZCOOL KuaiLe');anaA.x=100;anaA.y=150;anaA.alpha=0;s4.addChild(anaA);
+const anaA1=T('如果 B 沉默 → 我背叛得 0年，沉默得 1年 → 背叛更好',24,C.white,'Noto Sans SC');anaA1.x=120;anaA1.y=210;anaA1.alpha=0;s4.addChild(anaA1);
+const anaA2=T('如果 B 背叛 → 我背叛得 5年，沉默得 10年 → 背叛更好',24,C.white,'Noto Sans SC');anaA2.x=120;anaA2.y=260;anaA2.alpha=0;s4.addChild(anaA2);
+const anaAC=T('→ 无论 B 怎么选，A 背叛都更好！',28,C.accent,'ZCOOL KuaiLe');anaAC.x=120;anaAC.y=320;anaAC.alpha=0;s4.addChild(anaAC);
+
+// B same logic
+const anaB=T('囚犯 B 的想法完全一样：',32,C.accent,'ZCOOL KuaiLe');anaB.x=100;anaB.y=420;anaB.alpha=0;s4.addChild(anaB);
+const anaBC=T('→ 无论 A 怎么选，B 背叛都更好！',28,C.accent,'ZCOOL KuaiLe');anaBC.x=120;anaBC.y=480;anaBC.alpha=0;s4.addChild(anaBC);
+
+// Result
+const result=T('结果：两人都选择背叛 → 各判5年',36,C.accent,'ZCOOL KuaiLe');result.anchor.set(0.5);result.x=960;result.y=600;result.alpha=0;s4.addChild(result);
+const paradox=T('但如果两人都沉默，只需各判1年！',36,C.green,'ZCOOL KuaiLe');paradox.anchor.set(0.5);paradox.x=960;paradox.y=680;paradox.alpha=0;s4.addChild(paradox);
+
+// Big insight
+const insight=new PIXI.Container();insight.alpha=0;insight.x=960;insight.y=830;s4.addChild(insight);
+insight.addChild(R(800,100,C.accent,16,0.15));
+const insightBorder=new PIXI.Graphics();insightBorder.lineStyle(2,C.accent);insightBorder.drawRoundedRect(-400,-50,800,100,16);insight.addChild(insightBorder);
+const insightT=T('个体理性 ≠ 集体最优',40,C.accent,'ZCOOL KuaiLe');insightT.anchor.set(0.5);insight.addChild(insightT);
+
+// --- S5: Real world ---
+const s5=mkScene('real');
+s5.addChild(R(1920,1080,C.bg,0));
+const realTitle=T('生活中的囚徒困境',56,C.white,'ZCOOL KuaiLe');realTitle.anchor.set(0.5);realTitle.x=960;realTitle.y=60;realTitle.alpha=0;s5.addChild(realTitle);
+
+const examples=[
+  {icon:'💰',title:'价格战',desc:'两家公司都降价→利润都下降\n但谁都不敢先涨价',x:280,y:350},
+  {icon:'🌍',title:'气候变化',desc:'每个国家都想搭便车\n不想独自承担减排成本',x:960,y:350},
+  {icon:'🏟️',title:'军备竞赛',desc:'双方都想拥有更多武器\n结果资源浪费安全没变',x:1640,y:350},
+];
+
+const exCards=[];
+examples.forEach((e,i)=>{
+  const card=new PIXI.Container();card.x=e.x;card.y=e.y;card.alpha=0;
+  card.addChild(R(380,360,C.cell1,16));
+  const border=new PIXI.Graphics();border.lineStyle(1,0x333333);border.drawRoundedRect(-190,-180,380,360,16);card.addChild(border);
+  const icon=T(e.icon,72);icon.anchor.set(0.5);icon.y=-100;card.addChild(icon);
+  const title=T(e.title,32,C.gold,'ZCOOL KuaiLe');title.anchor.set(0.5);title.y=-20;card.addChild(title);
+  const desc=T(e.desc,20,C.gray,'Noto Sans SC');desc.anchor.set(0.5);desc.y=70;card.addChild(desc);
+  s5.addChild(card);exCards.push(card);
+});
+
+// Solution hint
+const solution=T('破解之道：建立信任 · 重复博弈 · 制度约束',32,C.green,'ZCOOL KuaiLe');
+solution.anchor.set(0.5);solution.x=960;solution.y=680;solution.alpha=0;s5.addChild(solution);
+
+// --- S6: Ending ---
+const s6=mkScene('end');
+s6.addChild(R(1920,1080,C.bg,0));
+const endT=T('博弈论告诉我们\n合作比竞争更难\n但也更有价值',64,C.white,'ZCOOL KuaiLe');endT.anchor.set(0.5);endT.x=960;endT.y=400;endT.alpha=0;s6.addChild(endT);
+const endSub=T('—— 囚徒困境 · 博弈论经典',28,C.gray);endSub.anchor.set(0.5);endSub.x=960;endSub.y=600;endSub.alpha=0;s6.addChild(endSub);
+
+// ============ TIMELINE ============
+const M=gsap.timeline({delay:0.3});
+function sub(t){M.to(subBar,{alpha:1,duration:0.3}).call(()=>{subText.text=t;});}
+function subH(){M.to(subBar,{alpha:0,duration:0.3});}
+function subS(t){M.call(()=>{subText.text=t;});}
+function hold(d=2){M.to({},{duration:d});}
+function fI(n,d=0.5){M.to(scenes[n],{alpha:1,duration:d});}
+function fO(n,d=0.5){M.to(scenes[n],{alpha:0,duration:d});}
+
+// S1: Title
+fI('title');
+M.to(t1,{alpha:1,duration:0.8,ease:'back.out(1.5)'});
+M.to(t1en,{alpha:1,duration:0.5},'<0.3');
+sub('在博弈论中，有一个最经典的思想实验');
+M.to(t1sub,{alpha:1,duration:0.6},'+=0.5');
+hold(3);
+fO('title',0.6);subH();
+
+// S2: Setup
+fI('setup',0.5);
+sub('两个嫌疑犯被分别关在不同的审讯室');
+M.to(roomA,{alpha:1,duration:0.5});
+M.to(roomB,{alpha:1,duration:0.5},'<0.2');
+M.to(wall,{alpha:1,duration:0.3},'<0.3');
+M.to(wallLabel,{alpha:1,duration:0.3},'<');
+hold(1);
+M.to(prisonerA,{alpha:1,duration:0.5});
+M.to(prisonerB,{alpha:1,duration:0.5},'<0.2');
+hold(2);
+
+subS('他们无法沟通，必须独立做出选择');
+M.to(thinkA,{alpha:1,duration:0.4});
+M.to(thinkB,{alpha:1,duration:0.4},'<0.2');
+hold(2);
+
+subS('沉默，还是背叛对方？');
+M.to(rules,{alpha:1,duration:0.6});
+hold(5);
+subH();
+fO('setup',0.6);
+
+// S3: Matrix
+fI('matrix',0.5);
+sub('让我们用收益矩阵来看看所有可能');
+M.to(matTitle,{alpha:1,duration:0.5});
+M.to(matrix,{alpha:1,duration:0.3});
+
+// Reveal headers
+matrix._headers.forEach((h,i)=>{
+  M.to(h,{alpha:1,duration:0.3},i===0?'+=0.3':'+=0.1');
+});
+
+// Reveal cells one by one
+const cellDelay=['+=0.5','+=0.5','+=0.5','+=0.5'];
+const cellSubs=['都沉默：各判1年，最好的集体结果','A沉默B背叛：A判10年，B释放','A背叛B沉默：A释放，B判10年','都背叛：各判5年，最差的集体结果'];
+
+matrix._cells.forEach((cell,i)=>{
+  M.to(cell.bg,{alpha:1,duration:0.3},cellDelay[i]);
+  M.to(cell.txt,{alpha:1,duration:0.3},'<0.1');
+  subS(cellSubs[i]);
+  hold(2.5);
+});
+
+hold(1);
+// Highlight the dilemma cell (both betray)
+M.to(matrix._cells[3].bg,{alpha:1,duration:0.1}).to(matrix._cells[3].bg.scale,{x:1.05,y:1.05,duration:0.3,yoyo:true,repeat:2});
+subS('纳什均衡落在「都背叛」—— 但这不是最优解');
+hold(3);
+subH();
+fO('matrix',0.6);
+
+// S4: Analysis
+fI('analysis',0.5);
+sub('让我们站在囚犯A的角度思考');
+M.to(anaTitle,{alpha:1,duration:0.5});
+M.to(anaA,{alpha:1,duration:0.4},'+=0.5');
+hold(1);
+subS('如果B沉默，A背叛更好');
+M.to(anaA1,{alpha:1,duration:0.4});
+hold(2);
+subS('如果B背叛，A背叛还是更好');
+M.to(anaA2,{alpha:1,duration:0.4});
+hold(2);
+M.to(anaAC,{alpha:1,duration:0.4,ease:'back.out(1.5)'});
+hold(1.5);
+subS('B的逻辑完全一样');
+M.to(anaB,{alpha:1,duration:0.4});
+M.to(anaBC,{alpha:1,duration:0.4},'+=0.5');
+hold(2);
+
+subS('两个理性人都选择背叛，各判5年');
+M.to(result,{alpha:1,duration:0.5});
+M.call(()=>sparkle(s4,960,600,25,C.accent));
+hold(2);
+subS('但如果都信任对方，只需各判1年');
+M.to(paradox,{alpha:1,duration:0.5});
+M.call(()=>sparkle(s4,960,680,25,C.green));
+hold(2);
+
+M.to(insight,{alpha:1,duration:0.5,ease:'back.out(1.5)'});
+hold(3);
+subH();
+fO('analysis',0.6);
+
+// S5: Real world
+fI('real',0.5);
+sub('囚徒困境无处不在');
+M.to(realTitle,{alpha:1,duration:0.5});
+exCards.forEach((card,i)=>{
+  M.to(card,{alpha:1,y:card.y,duration:0.5,ease:'back.out(1.5)'},`+=${i===0?0.5:0.4}`);
+  if(i===0) subS('商业竞争中的价格战');
+  if(i===1) subS('全球气候变化的博弈');
+  if(i===2) subS('国与国之间的军备竞赛');
+  hold(2);
+});
+M.to(solution,{alpha:1,duration:0.5});
+subS('破解困境的关键：建立长期信任');
+hold(3);
+subH();
+fO('real',0.6);
+
+// S6: Ending
+fI('end',0.5);
+M.to(endT,{alpha:1,duration:1,ease:'power2.out'});
+M.call(()=>sparkle(s6,960,400,40,C.gold));
+M.to(endSub,{alpha:1,duration:0.5},'+=0.5');
+hold(4);
+fO('end',1);
+
+M.eventCallback('onUpdate',()=>{prog.scale.x=M.progress()*1920;});
+}
+</script>
+</body>
+</html>
