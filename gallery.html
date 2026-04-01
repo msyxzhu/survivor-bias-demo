@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 科普动画工坊</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;700;900&family=ZCOOL+KuaiLe&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+  min-height:100vh;
+  background:#0f0f1a;
+  color:#fff;
+  font-family:'Noto Sans SC',sans-serif;
+  overflow-x:hidden;
+}
+
+/* Animated gradient background */
+.bg-gradient{
+  position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;
+  background:
+    radial-gradient(ellipse at 20% 30%, rgba(233,69,96,0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 70%, rgba(245,197,24,0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(39,174,96,0.04) 0%, transparent 50%);
+}
+
+/* Floating particles */
+.particles{position:fixed;top:0;left:0;width:100%;height:100%;z-index:1;pointer-events:none;overflow:hidden;}
+.particle{
+  position:absolute;
+  width:4px;height:4px;
+  background:rgba(255,255,255,0.15);
+  border-radius:50%;
+  animation:float linear infinite;
+}
+@keyframes float{
+  0%{transform:translateY(100vh) rotate(0deg);opacity:0;}
+  10%{opacity:1;}
+  90%{opacity:1;}
+  100%{transform:translateY(-10vh) rotate(720deg);opacity:0;}
+}
+
+/* Main content */
+.container{
+  position:relative;z-index:10;
+  max-width:1400px;
+  margin:0 auto;
+  padding:60px 40px;
+}
+
+/* Header */
+.header{text-align:center;margin-bottom:80px;}
+.header h1{
+  font-family:'ZCOOL KuaiLe',sans-serif;
+  font-size:64px;
+  background:linear-gradient(135deg, #e94560, #f5c518, #27ae60);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+  margin-bottom:16px;
+}
+.header p{font-size:20px;color:rgba(255,255,255,0.5);letter-spacing:4px;}
+.header .stats{
+  display:flex;justify-content:center;gap:40px;margin-top:30px;
+}
+.header .stat{text-align:center;}
+.header .stat-num{font-size:48px;font-weight:900;color:#e94560;font-family:'ZCOOL KuaiLe',sans-serif;}
+.header .stat-label{font-size:14px;color:rgba(255,255,255,0.4);margin-top:4px;letter-spacing:2px;}
+
+/* Video grid */
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(400px, 1fr));
+  gap:30px;
+}
+
+/* Video card */
+.card{
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.08);
+  border-radius:20px;
+  overflow:hidden;
+  transition:all 0.4s cubic-bezier(0.4,0,0.2,1);
+  cursor:pointer;
+  position:relative;
+}
+.card:hover{
+  transform:translateY(-8px);
+  border-color:rgba(255,255,255,0.2);
+  box-shadow:0 20px 60px rgba(0,0,0,0.4), 0 0 30px rgba(233,69,96,0.1);
+}
+.card:hover .card-preview{transform:scale(1.05);}
+.card:hover .card-play{opacity:1;transform:translate(-50%,-50%) scale(1);}
+
+.card-preview-wrap{
+  position:relative;
+  width:100%;
+  padding-top:56.25%; /* 16:9 */
+  overflow:hidden;
+  background:#1a1a2e;
+}
+.card-preview{
+  position:absolute;top:0;left:0;width:100%;height:100%;
+  object-fit:cover;
+  transition:transform 0.6s;
+}
+.card-preview-placeholder{
+  position:absolute;top:0;left:0;width:100%;height:100%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:80px;
+  background:linear-gradient(135deg, #1a1a2e, #16213e);
+}
+
+.card-play{
+  position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%) scale(0.8);
+  width:64px;height:64px;
+  background:rgba(233,69,96,0.9);
+  border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;
+  transition:all 0.3s;
+  backdrop-filter:blur(10px);
+}
+.card-play::after{
+  content:'';
+  width:0;height:0;
+  border-style:solid;
+  border-width:12px 0 12px 22px;
+  border-color:transparent transparent transparent #fff;
+  margin-left:4px;
+}
+
+.card-body{padding:24px 28px 28px;}
+.card-tag{
+  display:inline-block;
+  padding:4px 12px;
+  border-radius:20px;
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:1px;
+  margin-bottom:12px;
+}
+.tag-psychology{background:rgba(233,69,96,0.15);color:#e94560;}
+.tag-math{background:rgba(245,197,24,0.15);color:#f5c518;}
+.tag-enhanced{background:rgba(39,174,96,0.15);color:#27ae60;}
+
+.card-title{
+  font-family:'ZCOOL KuaiLe',sans-serif;
+  font-size:28px;
+  color:#fff;
+  margin-bottom:8px;
+}
+.card-desc{
+  font-size:15px;
+  color:rgba(255,255,255,0.45);
+  line-height:1.6;
+  margin-bottom:16px;
+}
+.card-meta{
+  display:flex;
+  gap:20px;
+  font-size:13px;
+  color:rgba(255,255,255,0.3);
+}
+.card-meta span{display:flex;align-items:center;gap:6px;}
+
+/* Versions badge */
+.versions{
+  display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;
+}
+.version-badge{
+  padding:4px 10px;
+  border-radius:6px;
+  font-size:12px;
+  background:rgba(255,255,255,0.06);
+  color:rgba(255,255,255,0.5);
+  border:1px solid rgba(255,255,255,0.08);
+  cursor:pointer;
+  transition:all 0.2s;
+  text-decoration:none;
+}
+.version-badge:hover{
+  background:rgba(255,255,255,0.12);
+  color:#fff;
+  border-color:rgba(255,255,255,0.2);
+}
+.version-badge.active{
+  background:rgba(233,69,96,0.15);
+  color:#e94560;
+  border-color:#e94560;
+}
+
+/* Footer */
+.footer{
+  text-align:center;
+  margin-top:80px;
+  padding:40px;
+  border-top:1px solid rgba(255,255,255,0.06);
+  color:rgba(255,255,255,0.25);
+  font-size:14px;
+}
+.footer a{color:rgba(255,255,255,0.4);text-decoration:none;}
+.footer a:hover{color:#e94560;}
+
+/* Tech stack */
+.tech-stack{
+  display:flex;justify-content:center;gap:16px;margin-top:40px;flex-wrap:wrap;
+}
+.tech-pill{
+  padding:6px 16px;
+  border-radius:20px;
+  font-size:13px;
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(255,255,255,0.08);
+  color:rgba(255,255,255,0.4);
+}
+
+/* Responsive */
+@media(max-width:900px){
+  .container{padding:30px 20px;}
+  .header h1{font-size:40px;}
+  .grid{grid-template-columns:1fr;}
+}
+</style>
+</head>
+<body>
+
+<div class="bg-gradient"></div>
+
+<!-- Floating particles -->
+<div class="particles" id="particles"></div>
+
+<div class="container">
+  <!-- Header -->
+  <div class="header">
+    <h1>🎬 AI 科普动画工坊</h1>
+    <p>用代码讲述知识 · HTML + JS 驱动的动画视频</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num" id="videoCount">2</div>
+        <div class="stat-label">选题</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num" id="versionCount">4</div>
+        <div class="stat-label">版本</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">∞</div>
+        <div class="stat-label">可能性</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Video Grid -->
+  <div class="grid">
+
+    <!-- Card 1: 幸存者偏差 -->
+    <div class="card" onclick="window.open('index.html','_blank')">
+      <div class="card-preview-wrap">
+        <div class="card-preview-placeholder">✈️</div>
+        <div class="card-play"></div>
+      </div>
+      <div class="card-body">
+        <span class="card-tag tag-psychology">心理学</span>
+        <div class="card-title">幸存者偏差</div>
+        <div class="card-desc">
+          二战飞机弹孔之谜 — 为什么看到的数据不是全部真相？沃德的洞察如何拯救了无数飞行员。
+        </div>
+        <div class="card-meta">
+          <span>⏱ ~3分钟</span>
+          <span>🔊 AI配音</span>
+          <span>📐 17个场景</span>
+        </div>
+        <div class="versions">
+          <a href="index.html" class="version-badge active" onclick="event.stopPropagation()">📄 原版 (SVG+GSAP)</a>
+          <a href="enhanced.html" class="version-badge" onclick="event.stopPropagation()">✨ 增强版 (rough.js+粒子)</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 2: 蒙提霍尔问题 -->
+    <div class="card" onclick="window.open('monty-hall.html','_blank')">
+      <div class="card-preview-wrap">
+        <div class="card-preview-placeholder">🚪</div>
+        <div class="card-play"></div>
+      </div>
+      <div class="card-body">
+        <span class="card-tag tag-math">数学 · 概率</span>
+        <div class="card-title">蒙提霍尔问题</div>
+        <div class="card-desc">
+          三扇门，一辆车，两只羊。换，还是不换？直觉和数学给出了截然不同的答案。
+        </div>
+        <div class="card-meta">
+          <span>⏱ ~1分钟</span>
+          <span>🎨 2D卡通风</span>
+          <span>📐 PixiJS渲染</span>
+        </div>
+        <div class="versions">
+          <a href="monty-hall.html" class="version-badge active" onclick="event.stopPropagation()">🎮 2D卡通版 (PixiJS)</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card 3: Coming Soon -->
+    <div class="card" style="opacity:0.4;cursor:default;" onclick="">
+      <div class="card-preview-wrap">
+        <div class="card-preview-placeholder">🧠</div>
+      </div>
+      <div class="card-body">
+        <span class="card-tag" style="background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.3);">即将推出</span>
+        <div class="card-title" style="color:rgba(255,255,255,0.3);">更多选题开发中...</div>
+        <div class="card-desc">
+          达克效应 · 薛定谔的猫 · 蝴蝶效应 · 电车难题 · 勾股定理 · 囚徒困境...
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Tech Stack -->
+  <div class="tech-stack">
+    <div class="tech-pill">GSAP</div>
+    <div class="tech-pill">PixiJS</div>
+    <div class="tech-pill">rough.js</div>
+    <div class="tech-pill">Edge TTS</div>
+    <div class="tech-pill">SVG</div>
+    <div class="tech-pill">Canvas</div>
+    <div class="tech-pill">WebGL</div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <p>AI 科普动画工坊 · 用 HTML/JS 制作科普短视频</p>
+    <p style="margin-top:8px;">
+      <a href="https://github.com/msyxzhu/survivor-bias-demo">GitHub</a>
+    </p>
+  </div>
+</div>
+
+<script>
+// Generate floating particles
+const particlesContainer = document.getElementById('particles');
+for(let i=0; i<30; i++){
+  const p = document.createElement('div');
+  p.className = 'particle';
+  p.style.left = Math.random()*100 + '%';
+  p.style.width = p.style.height = (2+Math.random()*4) + 'px';
+  p.style.animationDuration = (15+Math.random()*25) + 's';
+  p.style.animationDelay = Math.random()*20 + 's';
+  p.style.opacity = 0.1+Math.random()*0.2;
+  particlesContainer.appendChild(p);
+}
+</script>
+</body>
+</html>
